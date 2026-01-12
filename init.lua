@@ -56,14 +56,17 @@ dofile(modpath .. "/grasslandbuildings.lua")
 dofile(modpath .. "/lakebuildings.lua")
 dofile(modpath .. "/desertbuildings.lua")
 dofile(modpath .. "/savannabuildings.lua")
+dofile(modpath .. "/cavebuildings.lua")
 
 -- 4. Systems (villagers, mood, spawning)
 dofile(modpath .. "/npcmood.lua")
 dofile(modpath .. "/villager_behaviors.lua")
 dofile(modpath .. "/smart_doors.lua")
 dofile(modpath .. "/witch_magic.lua")
+dofile(modpath .. "/wizard_magic.lua")
 dofile(modpath .. "/villagers.lua")
 dofile(modpath .. "/house_spawning.lua")
+dofile(modpath .. "/cave_wizards.lua")
 
 -- 6. Optional/fun extras
 -- dofile(modpath .. "/buyablestuff.lua")
@@ -81,5 +84,5 @@ end
 -- ===================================================================
 
 minetest.log("action", "[lualore] Successfully loaded — " ..
-    "6 biomes | perfect villages | villagers | exploding toads")
+    "6 biomes | perfect villages | villagers | cave wizards | exploding toads")
 print(S("[MOD] lualore loaded — a living world awaits you"))
