@@ -16,7 +16,7 @@ local function register_cave_central(params)
         sidelen = 58,                          -- bigger grid for rare buildings
         noise_params = central_noise,
         biomes = {"cave","everness:forsaken_cave"},
-        y_min = -2000,
+        y_min = -8000,
         y_max = 0,
 
         place_offset_y = -8,
