@@ -78,7 +78,7 @@ for _, wizard in ipairs(wizard_types) do
 	mobs:register_mob(mob_name, {
 		type = "monster",
 		passive = false,
-		damage = 8,
+		damage = 3,
 		attack_type = "dogfight",
 		attacks_monsters = false,
 		attack_npcs = true,
@@ -88,7 +88,7 @@ for _, wizard in ipairs(wizard_types) do
 		hp_min = 100,
 		hp_max = 150,
 		armor = 150,
-		reach = 2,
+		reach = 1,
 		collisionbox = {-0.35, 0.0, -0.35, 0.35, 1.8, 0.35},
 		stepheight = 1.1,
 		visual = "mesh",
@@ -125,7 +125,30 @@ for _, wizard in ipairs(wizard_types) do
 
 		do_custom = function(self, dtime)
 			local success, err = pcall(function()
+				-- Always try to cast spells first
 				wizard.do_custom(self, dtime)
+
+				-- Keep distance from target
+				if self.attack then
+					local pos = self.object:get_pos()
+					local target_pos = self.attack:get_pos()
+
+					if pos and target_pos then
+						local distance = vector.distance(pos, target_pos)
+
+						-- If too close, back away
+						if distance < 6 then
+							local direction = vector.direction(target_pos, pos)
+							local velocity = vector.multiply(direction, 2)
+							self.object:set_velocity(velocity)
+						elseif distance > 18 then
+							-- If too far, move closer slowly
+							local direction = vector.direction(pos, target_pos)
+							local velocity = vector.multiply(direction, 1)
+							self.object:set_velocity(velocity)
+						end
+					end
+				end
 			end)
 			if not success then
 				minetest.log("warning", "[lualore] wizard do_custom error: " .. tostring(err))

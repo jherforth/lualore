@@ -579,9 +579,9 @@ function lualore.wizard_magic.wizard_attack(self, dtime, wizard_type)
 		self.nv_wizard_spell_index = 1
 	end
 
-	-- Initialize attack cooldown
+	-- Initialize attack cooldown (faster than melee)
 	if not self.nv_wizard_attack_cooldown then
-		self.nv_wizard_attack_cooldown = 4
+		self.nv_wizard_attack_cooldown = 2.5
 	end
 
 	self.nv_wizard_attack_timer = self.nv_wizard_attack_timer + dtime
@@ -600,8 +600,15 @@ function lualore.wizard_magic.wizard_attack(self, dtime, wizard_type)
 
 	local distance = vector.distance(pos, target_pos)
 
-	-- Only attack if within range (3-12 blocks)
-	if distance > 12 or distance < 3 then return false end
+	-- Wizards prefer medium to long range (4-20 blocks for spells)
+	if distance > 20 then return false end
+	if distance < 4 then
+		-- Too close - try to back away from target
+		local direction = vector.direction(target_pos, pos)
+		local retreat_pos = vector.add(pos, vector.multiply(direction, 2))
+		self.object:set_velocity(vector.multiply(direction, 2))
+		return false
+	end
 
 	local success = false
 
