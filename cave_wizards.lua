@@ -75,13 +75,17 @@ local wizard_types = {
 	}
 }
 
--- Helper function to update wizard armor visual
+-- Helper function to update wizard armor visual based on HP
 local function update_wizard_armor(self, wizard_texture, armor_item)
 	if not self or not self.object then return end
 
-	local armor_level = self.armor or 0
+	-- Calculate armor visibility based on HP percentage
+	local hp = self.health or 0
+	local max_hp = self.hp_max or 150
+	local hp_percent = hp / max_hp
 
-	if armor_level > 0 and armor_item then
+	-- Show armor only if HP is above 30% (armor "breaks" when wizard is low health)
+	if hp_percent > 0.3 and armor_item then
 		-- Get armor texture from item name
 		-- Format: 3d_armor:chestplate_type -> 3d_armor_chestplate_type.png
 		local armor_texture = armor_item:gsub(":", "_") .. ".png"
@@ -91,7 +95,7 @@ local function update_wizard_armor(self, wizard_texture, armor_item)
 			textures = {wizard_texture .. "^" .. armor_texture}
 		})
 	else
-		-- No armor - just base texture
+		-- No armor - just base texture (armor broke or depleted)
 		self.object:set_properties({
 			textures = {wizard_texture}
 		})

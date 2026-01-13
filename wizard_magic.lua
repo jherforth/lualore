@@ -263,15 +263,23 @@ function lualore.wizard_magic.white_hyper_curse(self, target)
 	end
 
 	local old_physics = target:get_physics_override()
+	local old_fov = target:get_fov()
+
 	player_effects[player_name].hyper_curse = true
 	player_effects[player_name].hyper_timer = 15
 	player_effects[player_name].old_physics = old_physics
+	player_effects[player_name].old_fov = old_fov or 0
+	player_effects[player_name].hyper_wobble = 0
+	player_effects[player_name].hyper_rotation = 0
 
-	-- Apply hyper speed
+	-- Apply disorienting effects: moderate speed increase
 	target:set_physics_override({
-		speed = (old_physics.speed or 1) * 5,
-		jump = (old_physics.jump or 1) * 4
+		speed = (old_physics.speed or 1) * 2,
+		jump = (old_physics.jump or 1) * 1.5
 	})
+
+	-- Zoom out FOV significantly to make mouse movement feel hypersensitive and disorienting
+	target:set_fov(140, false, 0.2)
 
 	-- Visual effect with star particles attached to player
 	local spawner_id = minetest.add_particlespawner({
@@ -665,11 +673,28 @@ minetest.register_globalstep(function(dtime)
 		if effects.hyper_curse then
 			effects.hyper_timer = effects.hyper_timer - 0.1
 
+			-- Add disorienting camera wobble effect
+			effects.hyper_wobble = (effects.hyper_wobble or 0) + 0.1
+			local wobble_intensity = math.sin(effects.hyper_wobble * 8) * 2
+
+			-- Apply subtle camera rotation to disorient
+			local look_dir = player:get_look_dir()
+			local pitch = player:get_look_vertical()
+			local yaw = player:get_look_horizontal()
+
+			-- Add small wobble to view angle
+			player:set_look_horizontal(yaw + wobble_intensity * 0.01)
+
 			if effects.hyper_timer <= 0 then
 				effects.hyper_curse = nil
 				if effects.old_physics then
 					player:set_physics_override(effects.old_physics)
 					effects.old_physics = nil
+				end
+				-- Restore FOV
+				if effects.old_fov then
+					player:set_fov(effects.old_fov, false, 0.5)
+					effects.old_fov = nil
 				end
 				-- Clean up particles
 				if effects.hyper_particles then
@@ -678,6 +703,7 @@ minetest.register_globalstep(function(dtime)
 					end
 					effects.hyper_particles = nil
 				end
+				effects.hyper_wobble = nil
 			end
 		end
 
