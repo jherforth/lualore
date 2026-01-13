@@ -10,14 +10,14 @@ local S = minetest.get_translator("lualore")
 -- CAVE CASTLE SPAWNING - Simple decoration approach like villages
 -- ===================================================================
 
--- Simple noise parameters for rare spawning (~800 node spacing)
+-- Noise parameters for extremely rare spawning (3000+ node spacing)
 local cave_castle_noise = {
-    offset = 0,
+    offset = -0.5,  -- Negative offset makes it even rarer
     scale = 1,
-    spread = {x = 800, y = 800, z = 800},  -- 800 node spacing
+    spread = {x = 3000, y = 3000, z = 3000},  -- 3000 node spacing minimum
     seed = 8492,
-    octaves = 3,
-    persist = 0.5,
+    octaves = 2,  -- Fewer octaves = less variation = rarer
+    persist = 0.3,  -- Lower persistence = rarer
     lacunarity = 2.0,
 }
 
@@ -35,12 +35,12 @@ minetest.register_decoration({
         "default:mossycobble",
     },
     sidelen = 80,
-    fill_ratio = 0.00005,  -- Very rare - one per ~800 nodes
+    fill_ratio = 0.000001,  -- Extremely rare
     noise_params = cave_castle_noise,
     y_min = -8000,
-    y_max = -20,
+    y_max = -100,  -- Only spawn deeper underground
     place_offset_y = -8,
-    flags = "place_center_x, place_center_z, force_placement, all_floors",
+    flags = "place_center_x, place_center_z, force_placement",  -- Removed all_floors to prevent multi-level spawning
     schematic = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts",
     rotation = "random",
 })
