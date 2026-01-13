@@ -156,12 +156,13 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
         minetest.log("action", "[Lualore] Attempting castle spawn in chunk " ..
             minetest.pos_to_string(minp) .. " to " .. minetest.pos_to_string(maxp))
 
-        -- Read the voxel data with a buffer (castle needs 20x15x20 space)
-        local vm = minetest.get_voxelmanip()
-        local buffer = 30  -- Extra space for castle checks
-        local read_minp = {x = minp.x - buffer, y = minp.y - buffer, z = minp.z - buffer}
-        local read_maxp = {x = maxp.x + buffer, y = maxp.y + buffer, z = maxp.z + buffer}
-        local emin, emax = vm:read_from_map(read_minp, read_maxp)
+        -- Get the mapgen VoxelManip object (proper way in mapgen callbacks)
+        local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
+        if not vm then
+            minetest.log("warning", "[Lualore] Could not get VoxelManip object")
+            return
+        end
+
         local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
         local data = vm:get_data()
 
