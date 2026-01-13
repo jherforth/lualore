@@ -131,6 +131,24 @@ end
 local function spawn_cave_castle(pos)
     local schematic_path = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts"
 
+    -- Verify schematic exists
+    local file = io.open(schematic_path, "r")
+    if not file then
+        minetest.log("error", "[lualore] Cave castle schematic file not found at: " .. schematic_path)
+        return false
+    end
+    file:close()
+
+    -- Try to read the schematic first to verify it's valid
+    local schematic_table = minetest.read_schematic(schematic_path, {})
+    if not schematic_table then
+        minetest.log("error", "[lualore] Cave castle schematic could not be read!")
+        return false
+    end
+
+    local size = schematic_table.size
+    minetest.log("action", "[lualore] Schematic size: " .. size.x .. "x" .. size.y .. "x" .. size.z)
+
     -- Random rotation
     local rotations = {"0", "90", "180", "270"}
     local rotation = rotations[math.random(#rotations)]
@@ -138,14 +156,18 @@ local function spawn_cave_castle(pos)
     minetest.log("action", "[lualore] Attempting to place cave castle at " ..
                  minetest.pos_to_string(pos) .. " with rotation " .. rotation)
 
-    -- Place schematic with force_placement in flags
+    -- Place a marker first so we can always find the location
+    minetest.set_node(pos, {name = "default:mese"})
+    minetest.set_node({x=pos.x, y=pos.y+1, z=pos.z}, {name = "default:meselamp"})
+
+    -- Use the schematic table directly with force_placement
     local success = minetest.place_schematic(
         pos,
-        schematic_path,
+        schematic_table,
         rotation,
         nil,
         true,
-        "place_center_x,place_center_z,force_placement"
+        "place_center_x,place_center_z"
     )
 
     if success then
