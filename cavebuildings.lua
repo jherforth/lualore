@@ -1,251 +1,162 @@
 local S = minetest.get_translator("lualore")
 
 -- ===================================================================
--- DM STATUE (prize for defeating wizards)
+-- CAVE CASTLE SPAWNING - Simple decoration-based system
 -- ===================================================================
--- The caverealms:dm_statue is from the caverealms mod (dependency)
--- It's spawned in cave castles as the prize for defeating the wizards
+-- Uses the same pattern as village buildings but for underground caves
 
--- ===================================================================
--- CAVE CASTLE SPAWNING - Manual placement with proper checks
--- ===================================================================
+lualore = lualore or {}
 
--- Storage for tracking castle positions to prevent clustering
-local castle_positions = {}
-local MIN_CASTLE_DISTANCE = 500  -- Minimum distance between castles
-local storage = minetest.get_mod_storage()
-
--- Load castle positions from storage
-local function load_castle_positions()
-    local serialized = storage:get_string("castle_positions")
-    if serialized and serialized ~= "" then
-        castle_positions = minetest.deserialize(serialized) or {}
-        minetest.log("action", "[Lualore] Loaded " .. #castle_positions .. " castle positions")
-    end
-end
-
--- Save castle positions to storage
-local function save_castle_positions()
-    storage:set_string("castle_positions", minetest.serialize(castle_positions))
-end
-
--- Load positions on startup
-load_castle_positions()
-
--- Check if a position is far enough from existing castles
-local function is_far_from_castles(pos)
-    for _, castle_pos in ipairs(castle_positions) do
-        local dist = vector.distance(pos, castle_pos)
-        if dist < MIN_CASTLE_DISTANCE then
-            return false
-        end
-    end
-    return true
-end
-
--- Cache content IDs for performance (only cache common ones that are guaranteed to exist)
-local c_air = minetest.get_content_id("air")
-local c_stone = minetest.get_content_id("default:stone")
-local c_desert_stone = minetest.get_content_id("default:desert_stone")
-local c_sandstone = minetest.get_content_id("default:sandstone")
-local c_cobble = minetest.get_content_id("default:cobble")
-local c_mossycobble = minetest.get_content_id("default:mossycobble")
-
--- Cache optional content IDs (may not exist in all games)
-local c_floor_nodes = {c_stone, c_desert_stone, c_sandstone, c_cobble, c_mossycobble}
-
--- Try to add optional mod nodes
-local optional_floors = {
-    "caverealms:stone_with_moss",
-    "caverealms:stone_with_lichen",
-    "everness:crystal_case_dirt_with_moss",
-    "everness:crystal_cave_dirt_with_moss",
-    "everness:dirt_with_crystal_grass",
-    "everness:dirt_with_cursed_grass",
-    "everness:soul_sandstone_veined",
-    "everness:moss_block",
-    "everness:mineral_lava_stone_with_moss",
-    "default:desert_cobble",
-    "default:dry_dirt",
-    "default:dry_dirt_with_dry_grass",
-    "default:clay",
+-- Ultra-rare noise for cave castles (much rarer than village central buildings)
+-- This ensures only one castle spawns per large underground area
+lualore.cave_castle_noise = {
+    offset = 0.0,
+    scale = 0.00001,          -- Extremely rare (10x rarer than central buildings)
+    spread = {x = 500, y = 500, z = 500},  -- Large spread for max rarity
+    seed = 192837465,         -- Unique seed for cave castles
+    octaves = 3,
+    persistence = 0.6,
+    lacunarity = 2.0,
+    flags = "defaults",
 }
 
-for _, nodename in ipairs(optional_floors) do
-    if minetest.registered_nodes[nodename] then
-        table.insert(c_floor_nodes, minetest.get_content_id(nodename))
+-- Register cave castle as a decoration
+minetest.register_decoration({
+    name = "lualore:cavecastle",
+    deco_type = "schematic",
+
+    -- Place on any solid node typically found in caves
+    place_on = {
+        "default:stone",
+        "default:desert_stone",
+        "default:sandstone",
+        "default:cobble",
+        "default:mossycobble",
+        "default:desert_cobble",
+        "caverealms:stone_with_moss",
+        "caverealms:stone_with_lichen",
+    },
+
+    sidelen = 80,
+    noise_params = lualore.cave_castle_noise,
+
+    -- No biome restriction - can spawn anywhere underground
+    -- biomes parameter omitted = all biomes
+
+    -- Deep underground only
+    y_min = -8000,
+    y_max = -100,
+
+    place_offset_y = -8,
+    flags = "place_center_x, place_center_z, force_placement, all_floors",
+
+    -- Allow placement on varied terrain
+    height = 0,
+    height_max = 0,
+
+    schematic = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts",
+    rotation = "random",
+})
+
+-- ===================================================================
+-- CAVE WIZARDS - Spawn at dm_statue markers
+-- ===================================================================
+-- When a castle spawns, it contains a caverealms:dm_statue
+-- We'll spawn wizards near these statues
+
+local wizard_colors = {"red", "white", "black", "golden"}
+local spawned_statues = {}
+local storage = minetest.get_mod_storage()
+
+-- Load tracked statues
+local function load_statues()
+    local data = storage:get_string("spawned_cave_statues")
+    if data and data ~= "" then
+        spawned_statues = minetest.deserialize(data) or {}
+        minetest.log("action", "[Lualore] Loaded " .. #spawned_statues .. " cave statue positions")
     end
 end
 
--- Check if a content ID is a valid floor node
-local function is_floor_node(cid)
-    for _, floor_cid in ipairs(c_floor_nodes) do
-        if cid == floor_cid then
-            return true
+local function save_statues()
+    storage:set_string("spawned_cave_statues", minetest.serialize(spawned_statues))
+end
+
+load_statues()
+
+-- Check for new statues and spawn wizards
+minetest.register_on_generated(function(minp, maxp, blockseed)
+    minetest.after(8, function()  -- Wait for decorations to place
+        -- Only check underground
+        if minp.y > -100 then
+            return
         end
-    end
-    return false
-end
 
--- Check if a position is a valid cave floor using VoxelManip data
-local function is_valid_cave_floor(pos, data, area)
-    local floor_y = pos.y - 1
-    local castle_width = 20
-    local castle_height = 15
+        -- Look for dm_statue nodes
+        local statues = minetest.find_nodes_in_area(
+            minp,
+            maxp,
+            {"caverealms:dm_statue"}
+        )
 
-    -- Get area bounds
-    local minp = area.MinEdge
-    local maxp = area.MaxEdge
+        for _, statue_pos in ipairs(statues) do
+            local statue_key = minetest.pos_to_string(statue_pos)
 
-    -- Check if all required positions are within bounds
-    if pos.x - castle_width/2 < minp.x or pos.x + castle_width/2 > maxp.x or
-       pos.z - castle_width/2 < minp.z or pos.z + castle_width/2 > maxp.z or
-       floor_y < minp.y or pos.y + castle_height > maxp.y then
-        return false, "out_of_bounds"
-    end
-
-    -- Wrap in pcall to catch any indexing errors
-    local success, result = pcall(function()
-        -- Check for solid floor below (sample multiple points, but allow some gaps)
-        local floor_checks = 0
-        local floor_solid = 0
-        for x = pos.x - castle_width/2, pos.x + castle_width/2, 3 do
-            for z = pos.z - castle_width/2, pos.z + castle_width/2, 3 do
-                floor_checks = floor_checks + 1
-                local idx = area:index(math.floor(x), floor_y, math.floor(z))
-                if is_floor_node(data[idx]) then
-                    floor_solid = floor_solid + 1
-                end
+            -- Skip if we already spawned wizards here
+            if spawned_statues[statue_key] then
+                goto continue
             end
-        end
 
-        -- Require at least 70% solid floor (more lenient)
-        if floor_solid / floor_checks < 0.7 then
-            return false, "insufficient_floor"
-        end
+            minetest.log("action", "[Lualore] Found new cave castle at " .. statue_key)
 
-        -- Check for air above (castle needs vertical space, but allow some obstacles)
-        local air_checks = 0
-        local air_found = 0
-        for y = pos.y, pos.y + castle_height do
-            for x = pos.x - 8, pos.x + 8, 4 do  -- Slightly wider spacing
-                for z = pos.z - 8, pos.z + 8, 4 do
-                    air_checks = air_checks + 1
-                    local idx = area:index(math.floor(x), y, math.floor(z))
-                    if data[idx] == c_air then
-                        air_found = air_found + 1
+            -- Spawn 4 wizards (one of each color)
+            local spawn_attempts = 0
+            local wizards_spawned = 0
+
+            while wizards_spawned < 4 and spawn_attempts < 50 do
+                spawn_attempts = spawn_attempts + 1
+
+                -- Random position near the statue
+                local offset = {
+                    x = math.random(-15, 15),
+                    y = math.random(-5, 5),
+                    z = math.random(-15, 15)
+                }
+
+                local spawn_pos = vector.add(statue_pos, offset)
+                local node_below = minetest.get_node({x = spawn_pos.x, y = spawn_pos.y - 1, z = spawn_pos.z})
+                local node_at = minetest.get_node(spawn_pos)
+
+                -- Check if it's a valid spawn spot (solid below, air at position)
+                if node_below.name ~= "air" and node_at.name == "air" then
+                    local color = wizard_colors[wizards_spawned + 1]
+
+                    local wizard = minetest.add_entity(spawn_pos, "lualore:" .. color .. "wizard")
+                    if wizard then
+                        wizards_spawned = wizards_spawned + 1
+                        minetest.log("action", "[Lualore] Spawned " .. color .. " wizard at cave castle")
                     end
                 end
             end
-        end
 
-        -- Require at least 80% air space (more lenient)
-        if air_found / air_checks < 0.8 then
-            return false, "insufficient_air"
-        end
-
-        return true, "valid"
-    end)
-
-    if not success then
-        minetest.log("warning", "[Lualore] Error in is_valid_cave_floor: " .. tostring(result))
-        return false, "error"
-    end
-
-    return result
-end
-
--- Mapgen callback for castle spawning
-minetest.register_on_generated(function(minp, maxp, blockseed)
-    local success, error_msg = pcall(function()
-        -- Only check deep underground
-        if minp.y > -100 or maxp.y < -8000 then
-            return
-        end
-
-        -- Rare chance per chunk (increased for better distribution)
-        local pr = PcgRandom(blockseed + 8492)
-        if pr:next(1, 100) ~= 1 then  -- 1 in 100 chance per chunk
-            return
-        end
-
-        minetest.log("action", "[Lualore] Attempting castle spawn in chunk " ..
-            minetest.pos_to_string(minp) .. " to " .. minetest.pos_to_string(maxp))
-
-        -- Get the mapgen VoxelManip object (proper way in mapgen callbacks)
-        local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
-        if not vm then
-            minetest.log("warning", "[Lualore] Could not get VoxelManip object")
-            return
-        end
-
-        local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
-        local data = vm:get_data()
-
-        -- Try to find a valid position in this chunk (stay well within original chunk bounds)
-        local attempts = 0
-        local margin = 15
-        local max_attempts = 30
-        while attempts < max_attempts do
-            attempts = attempts + 1
-
-            local test_pos = {
-                x = pr:next(minp.x + margin, maxp.x - margin),
-                y = pr:next(minp.y + margin, maxp.y - margin),
-                z = pr:next(minp.z + margin, maxp.z - margin),
-            }
-
-            -- Check if position has valid floor
-            local valid, reason = is_valid_cave_floor(test_pos, data, area)
-            if valid then
-                -- Check if far enough from other castles
-                if is_far_from_castles(test_pos) then
-                    -- Schedule castle placement (must be done after mapgen completes)
-                    minetest.after(0.1, function()
-                        local schematic_path = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts"
-                        local success = minetest.place_schematic(
-                            {x=test_pos.x, y=test_pos.y-8, z=test_pos.z},
-                            schematic_path,
-                            "random",
-                            nil,
-                            true,
-                            "place_center_x, place_center_z"
-                        )
-
-                        if success then
-                            table.insert(castle_positions, test_pos)
-                            save_castle_positions()
-                            minetest.log("action", "[Lualore] ✓ Cave castle spawned at " ..
-                                minetest.pos_to_string(test_pos))
-                        else
-                            minetest.log("warning", "[Lualore] Failed to place castle schematic at " ..
-                                minetest.pos_to_string(test_pos))
-                        end
-                    end)
-                    return
-                else
-                    minetest.log("action", "[Lualore] Valid floor found but too close to existing castle (attempt " ..
-                        attempts .. "/" .. max_attempts .. ")")
-                end
-            elseif attempts % 5 == 0 then
-                -- Log every 5th rejection to avoid spam
-                minetest.log("action", "[Lualore] Location rejected: " .. reason ..
-                    " (attempt " .. attempts .. "/" .. max_attempts .. ")")
+            if wizards_spawned > 0 then
+                spawned_statues[statue_key] = true
+                save_statues()
+                minetest.log("action", "[Lualore] Cave castle complete: " .. wizards_spawned .. "/4 wizards spawned")
             end
+
+            ::continue::
         end
-
-        minetest.log("action", "[Lualore] No valid castle location found after " .. attempts .. " attempts")
     end)
-
-    if not success then
-        minetest.log("error", "[Lualore] Error in castle spawning callback: " .. tostring(error_msg))
-    end
 end)
 
--- Debug command to manually spawn a cave castle
+-- ===================================================================
+-- DEBUG COMMANDS
+-- ===================================================================
+
+-- Manual spawn command
 minetest.register_chatcommand("spawn_cavecastle", {
     params = "",
-    description = "Spawn a cave castle at your current position (for testing)",
+    description = "Spawn a cave castle at your current position",
     privs = {server = true},
     func = function(name, param)
         local player = minetest.get_player_by_name(name)
@@ -256,21 +167,8 @@ minetest.register_chatcommand("spawn_cavecastle", {
         local pos = player:get_pos()
         pos.y = math.floor(pos.y)
 
-        -- Check distance from other castles
-        if not is_far_from_castles(pos) then
-            return false, "Too close to another castle (min distance: " .. MIN_CASTLE_DISTANCE .. " nodes)"
-        end
-
         local schematic_path = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts"
 
-        -- Check if file exists
-        local file = io.open(schematic_path, "r")
-        if not file then
-            return false, "Schematic file not found at: " .. schematic_path
-        end
-        file:close()
-
-        -- Place the schematic
         local success = minetest.place_schematic(
             {x=pos.x, y=pos.y-8, z=pos.z},
             schematic_path,
@@ -281,8 +179,6 @@ minetest.register_chatcommand("spawn_cavecastle", {
         )
 
         if success then
-            table.insert(castle_positions, pos)
-            save_castle_positions()
             return true, "Cave castle spawned at " .. minetest.pos_to_string(pos)
         else
             return false, "Failed to spawn cave castle"
@@ -290,41 +186,10 @@ minetest.register_chatcommand("spawn_cavecastle", {
     end,
 })
 
--- Command to list all castle positions
-minetest.register_chatcommand("list_castles", {
-    params = "",
-    description = "List all spawned cave castle positions",
-    privs = {server = true},
-    func = function(name, param)
-        if #castle_positions == 0 then
-            return true, "No castles have been spawned yet"
-        end
-
-        local output = "Cave castles (" .. #castle_positions .. " total):\n"
-        for i, pos in ipairs(castle_positions) do
-            output = output .. i .. ". " .. minetest.pos_to_string(pos) .. "\n"
-        end
-        return true, output
-    end,
-})
-
--- Command to clear all castle position records
-minetest.register_chatcommand("clear_castle_records", {
-    params = "",
-    description = "Clear all castle position records (allows new spawns)",
-    privs = {server = true},
-    func = function(name, param)
-        local count = #castle_positions
-        castle_positions = {}
-        save_castle_positions()
-        return true, "Cleared " .. count .. " castle position records"
-    end,
-})
-
--- Debug command to find nearest statue
-minetest.register_chatcommand("find_statue", {
+-- Find nearest statue
+minetest.register_chatcommand("find_castle", {
     params = "<radius>",
-    description = "Find nearest dm_statue within radius (default 100)",
+    description = "Find nearest cave castle within radius (default 100)",
     privs = {server = true},
     func = function(name, param)
         local player = minetest.get_player_by_name(name)
@@ -353,13 +218,29 @@ minetest.register_chatcommand("find_statue", {
                 end
             end
 
-            return true, "Found " .. #statues .. " statues. Nearest at " ..
+            return true, "Found " .. #statues .. " castles. Nearest at " ..
                         minetest.pos_to_string(nearest) ..
                         " (distance: " .. math.floor(min_dist) .. " nodes)"
         else
-            return false, "No statues found within " .. radius .. " nodes"
+            return false, "No castles found within " .. radius .. " nodes"
         end
     end,
 })
 
-print(S("[MOD] Lualore - Cave castles loaded (VoxelManip-based spawning with proper floor detection)"))
+-- Clear statue records (allows respawning wizards for testing)
+minetest.register_chatcommand("clear_castle_records", {
+    params = "",
+    description = "Clear castle records (allows wizard respawn)",
+    privs = {server = true},
+    func = function(name, param)
+        local count = 0
+        for _ in pairs(spawned_statues) do
+            count = count + 1
+        end
+        spawned_statues = {}
+        save_statues()
+        return true, "Cleared " .. count .. " castle records"
+    end,
+})
+
+print(S("[MOD] Lualore - Cave castles loaded (decoration-based spawning)"))
