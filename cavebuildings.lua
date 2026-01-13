@@ -43,52 +43,74 @@ local function is_far_from_castles(pos)
     return true
 end
 
--- Check if a position is a valid cave floor
-local function is_valid_cave_floor(pos)
-    -- Check for solid ground below
-    local below = minetest.get_node({x=pos.x, y=pos.y-1, z=pos.z})
-    local floor_nodes = {
-        ["default:stone"] = true,
-        ["default:desert_stone"] = true,
-        ["default:sandstone"] = true,
-        ["default:cobble"] = true,
-        ["default:mossycobble"] = true,
-        ["everness:crystal_case_dirt_with_moss"] = true,
-        ["caverealms:stone_with_moss"] = true,
-        ["caverealms:stone_with_lichen"] = true,
-        ["everness:crystal_cave_dirt_with_moss"] = true,
-        ["everness:dirt_with_crystal_grass"] = true,
-        ["everness:dirt_with_cursed_grass"] = true,
-        ["everness:soul_sandstone_veined"] = true,
-        ["default:desert_cobble"] = true,
-        ["default:dry_dirt"] = true,
-        ["default:dry_dirt_with_dry_grass"] = true,
-        ["everness:moss_block"] = true,
-        ["default:clay"] = true,
-        ["everness:mineral_lava_stone_with_moss"] = true,
-        ["default:stone"] = true,
-        ["default:desert_stone"] = true,
-    }
+-- Cache content IDs for performance (only cache common ones that are guaranteed to exist)
+local c_air = minetest.get_content_id("air")
+local c_stone = minetest.get_content_id("default:stone")
+local c_desert_stone = minetest.get_content_id("default:desert_stone")
+local c_sandstone = minetest.get_content_id("default:sandstone")
+local c_cobble = minetest.get_content_id("default:cobble")
+local c_mossycobble = minetest.get_content_id("default:mossycobble")
 
-    if not floor_nodes[below.name] then
-        return false
+-- Cache optional content IDs (may not exist in all games)
+local c_floor_nodes = {c_stone, c_desert_stone, c_sandstone, c_cobble, c_mossycobble}
+
+-- Try to add optional mod nodes
+local optional_floors = {
+    "caverealms:stone_with_moss",
+    "caverealms:stone_with_lichen",
+    "everness:crystal_case_dirt_with_moss",
+    "everness:crystal_cave_dirt_with_moss",
+    "everness:dirt_with_crystal_grass",
+    "everness:dirt_with_cursed_grass",
+    "everness:soul_sandstone_veined",
+    "everness:moss_block",
+    "everness:mineral_lava_stone_with_moss",
+    "default:desert_cobble",
+    "default:dry_dirt",
+    "default:dry_dirt_with_dry_grass",
+    "default:clay",
+}
+
+for _, nodename in ipairs(optional_floors) do
+    if minetest.registered_nodes[nodename] then
+        table.insert(c_floor_nodes, minetest.get_content_id(nodename))
     end
+end
 
-    -- Check for air above (need space for castle)
-    for y_offset = 0, 15 do  -- Castle needs ~15 blocks of height
-        local above = minetest.get_node({x=pos.x, y=pos.y+y_offset, z=pos.z})
-        if above.name ~= "air" then
-            return false
+-- Check if a content ID is a valid floor node
+local function is_floor_node(cid)
+    for _, floor_cid in ipairs(c_floor_nodes) do
+        if cid == floor_cid then
+            return true
+        end
+    end
+    return false
+end
+
+-- Check if a position is a valid cave floor using VoxelManip data
+local function is_valid_cave_floor(pos, data, area)
+    local floor_y = pos.y - 1
+    local castle_width = 20
+    local castle_height = 15
+
+    -- Check for solid floor below (sample multiple points)
+    for x = pos.x - castle_width/2, pos.x + castle_width/2, 3 do
+        for z = pos.z - castle_width/2, pos.z + castle_width/2, 3 do
+            local idx = area:index(x, floor_y, z)
+            if not is_floor_node(data[idx]) then
+                return false
+            end
         end
     end
 
-    -- Check for enough floor space around (castle is ~20x20)
-    for x_offset = -10, 10, 5 do
-        for z_offset = -10, 10, 5 do
-            local check_pos = {x=pos.x+x_offset, y=pos.y-1, z=pos.z+z_offset}
-            local node = minetest.get_node(check_pos)
-            if not floor_nodes[node.name] then
-                return false
+    -- Check for air above (castle needs vertical space)
+    for y = pos.y, pos.y + castle_height do
+        for x = pos.x - 8, pos.x + 8, 3 do
+            for z = pos.z - 8, pos.z + 8, 3 do
+                local idx = area:index(x, y, z)
+                if data[idx] ~= c_air then
+                    return false
+                end
             end
         end
     end
@@ -103,45 +125,67 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
         return
     end
 
-    -- Very rare chance per chunk
+    -- Rare chance per chunk
     local pr = PcgRandom(blockseed + 8492)
-    if pr:next(1, 5000) ~= 1 then  -- 1 in 5000 chance per chunk
+    if pr:next(1, 500) ~= 1 then  -- 1 in 500 chance per chunk (for testing)
         return
     end
 
+    minetest.log("action", "[Lualore] Attempting castle spawn in chunk " ..
+        minetest.pos_to_string(minp) .. " to " .. minetest.pos_to_string(maxp))
+
+    -- Read the voxel data
+    local vm = minetest.get_voxelmanip()
+    local emin, emax = vm:read_from_map(minp, maxp)
+    local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
+    local data = vm:get_data()
+
     -- Try to find a valid position in this chunk
     local attempts = 0
-    while attempts < 5 do
+    while attempts < 10 do
         attempts = attempts + 1
 
         local test_pos = {
-            x = pr:next(minp.x + 20, maxp.x - 20),
+            x = pr:next(minp.x + 25, maxp.x - 25),
             y = pr:next(minp.y + 20, maxp.y - 20),
-            z = pr:next(minp.z + 20, maxp.z - 20),
+            z = pr:next(minp.z + 25, maxp.z - 25),
         }
 
-        -- Check if position is valid
-        if is_valid_cave_floor(test_pos) and is_far_from_castles(test_pos) then
-            -- Place the castle
-            local schematic_path = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts"
-            local success = minetest.place_schematic(
-                {x=test_pos.x, y=test_pos.y-8, z=test_pos.z},
-                schematic_path,
-                "random",
-                nil,
-                true,
-                "place_center_x, place_center_z"
-            )
+        -- Check if position has valid floor
+        if is_valid_cave_floor(test_pos, data, area) then
+            -- Check if far enough from other castles
+            if is_far_from_castles(test_pos) then
+                -- Schedule castle placement (must be done after mapgen completes)
+                minetest.after(0.1, function()
+                    local schematic_path = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts"
+                    local success = minetest.place_schematic(
+                        {x=test_pos.x, y=test_pos.y-8, z=test_pos.z},
+                        schematic_path,
+                        "random",
+                        nil,
+                        true,
+                        "place_center_x, place_center_z"
+                    )
 
-            if success then
-                table.insert(castle_positions, test_pos)
-                save_castle_positions()
-                minetest.log("action", "[Lualore] Cave castle spawned at " ..
+                    if success then
+                        table.insert(castle_positions, test_pos)
+                        save_castle_positions()
+                        minetest.log("action", "[Lualore] Cave castle spawned at " ..
+                            minetest.pos_to_string(test_pos))
+                    else
+                        minetest.log("warning", "[Lualore] Failed to place castle schematic at " ..
+                            minetest.pos_to_string(test_pos))
+                    end
+                end)
+                return
+            else
+                minetest.log("action", "[Lualore] Valid floor found but too close to existing castle at " ..
                     minetest.pos_to_string(test_pos))
             end
-            return
         end
     end
+
+    minetest.log("action", "[Lualore] No valid castle location found after " .. attempts .. " attempts")
 end)
 
 -- Debug command to manually spawn a cave castle
@@ -264,4 +308,4 @@ minetest.register_chatcommand("find_statue", {
     end,
 })
 
-print(S("[MOD] Lualore - Cave castles loaded (manual spawning with proper floor detection)"))
+print(S("[MOD] Lualore - Cave castles loaded (VoxelManip-based spawning with proper floor detection)"))
