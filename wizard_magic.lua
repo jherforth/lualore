@@ -80,7 +80,7 @@ function lualore.wizard_magic.red_teleport_attack(self, target)
 	-- Play magic sound (teleport uses generic magic sound)
 	minetest.sound_play("magic", {
 		pos = caster_pos,
-		gain = 0.3,
+		gain = 0.15,
 		max_hear_distance = 32
 	}, true)
 
@@ -126,7 +126,7 @@ function lualore.wizard_magic.red_invert_controls(self, target)
 	local red_sound = math.random(1, 2)
 	minetest.sound_play("Red" .. red_sound, {
 		pos = caster_pos,
-		gain = 0.3,
+		gain = 0.15,
 		max_hear_distance = 32
 	}, true)
 
@@ -190,7 +190,7 @@ function lualore.wizard_magic.white_sick_curse(self, target)
 	local green_sound = math.random(1, 2)
 	minetest.sound_play("Green" .. green_sound, {
 		pos = caster_pos,
-		gain = 0.3,
+		gain = 0.15,
 		max_hear_distance = 32
 	}, true)
 
@@ -250,7 +250,7 @@ function lualore.wizard_magic.white_hyper_curse(self, target)
 	local white_sound = math.random(1, 2)
 	minetest.sound_play("White" .. white_sound, {
 		pos = caster_pos,
-		gain = 0.3,
+		gain = 0.15,
 		max_hear_distance = 32
 	}, true)
 
@@ -318,7 +318,7 @@ function lualore.wizard_magic.gold_levitate(self, target)
 	local blue_sound = math.random(1, 2)
 	minetest.sound_play("Blue" .. blue_sound, {
 		pos = caster_pos,
-		gain = 0.3,
+		gain = 0.15,
 		max_hear_distance = 32
 	}, true)
 
@@ -382,7 +382,7 @@ function lualore.wizard_magic.gold_transform(self, target)
 	local yellow_sound = math.random(1, 2)
 	minetest.sound_play("Yellow" .. yellow_sound, {
 		pos = caster_pos,
-		gain = 0.3,
+		gain = 0.15,
 		max_hear_distance = 32
 	}, true)
 
@@ -464,7 +464,7 @@ function lualore.wizard_magic.black_blindness(self, target)
 	local black_sound = math.random(1, 2)
 	minetest.sound_play("Black" .. black_sound, {
 		pos = caster_pos,
-		gain = 0.3,
+		gain = 0.15,
 		max_hear_distance = 32
 	}, true)
 
@@ -477,7 +477,7 @@ function lualore.wizard_magic.black_blindness(self, target)
 	end
 
 	player_effects[player_name].blinded = true
-	player_effects[player_name].blind_timer = 10
+	player_effects[player_name].blind_timer = 8
 	player_effects[player_name].blind_particles = {}
 
 	-- Create swirling black particles that obscure vision without completely blocking it
@@ -499,8 +499,8 @@ function lualore.wizard_magic.black_blindness(self, target)
 			maxacc = {x = 0, y = 0, z = 0},
 			minexptime = 0.8,  -- Particle lifetime (how long each particle exists)
 			maxexptime = 1.2,
-			minsize = 8,  -- Minimum particle size (increase for more coverage)
-			maxsize = 18,  -- Maximum particle size (increase for more coverage)
+			minsize = 4,  -- Minimum particle size (increase for more coverage)
+			maxsize = 9,  -- Maximum particle size (increase for more coverage)
 			collisiondetection = false,
 			attached = target,  -- Particles follow player
 			texture = "lualore_particle_circle.png^[colorize:black:255",  -- Black circle for blindness
