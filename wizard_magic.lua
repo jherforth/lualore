@@ -416,8 +416,8 @@ function lualore.wizard_magic.gold_transform(self, target)
 		jump = 0.7
 	})
 
-	-- Shrink field of view
-	target:set_fov(0.8, false, 0.8)
+	-- Shrink field of view (50% more open than before: 0.8 -> 1.2)
+	target:set_fov(1.2, false, 0.8)
 
 	-- Visual effect with downward arrow particles
 	local spawner_id = minetest.add_particlespawner({
@@ -569,8 +569,16 @@ minetest.register_globalstep(function(dtime)
 					local old_speed = player:get_physics_override().speed or 1
 					player:set_physics_override({speed = 0})
 
-					-- Green particle burst
+					-- Play sick sound
 					local pos = player:get_pos()
+					local sick_sound = math.random(1, 2)
+					minetest.sound_play("Sick" .. sick_sound, {
+						pos = pos,
+						gain = 0.4,
+						max_hear_distance = 16
+					}, true)
+
+					-- Green particle burst
 					minetest.add_particlespawner({
 						amount = 50,
 						time = 1,
@@ -788,11 +796,15 @@ function lualore.wizard_magic.wizard_attack(self, dtime, wizard_type)
 	end
 
 	if success then
+		-- Full cooldown on successful spell cast
 		self.nv_wizard_attack_timer = 0
 		return true
+	else
+		-- Shorter cooldown on failed spell (player already has effect or other failure)
+		-- This prevents rapid-fire spell attempts
+		self.nv_wizard_attack_timer = -1.5
+		return false
 	end
-
-	return false
 end
 
 --------------------------------------------------------------------
