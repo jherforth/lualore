@@ -104,103 +104,119 @@ local function is_valid_cave_floor(pos, data, area)
         return false
     end
 
-    -- Check for solid floor below (sample multiple points)
-    for x = pos.x - castle_width/2, pos.x + castle_width/2, 3 do
-        for z = pos.z - castle_width/2, pos.z + castle_width/2, 3 do
-            local idx = area:index(x, floor_y, z)
-            if not is_floor_node(data[idx]) then
-                return false
-            end
-        end
-    end
-
-    -- Check for air above (castle needs vertical space)
-    for y = pos.y, pos.y + castle_height do
-        for x = pos.x - 8, pos.x + 8, 3 do
-            for z = pos.z - 8, pos.z + 8, 3 do
-                local idx = area:index(x, y, z)
-                if data[idx] ~= c_air then
+    -- Wrap in pcall to catch any indexing errors
+    local success, result = pcall(function()
+        -- Check for solid floor below (sample multiple points)
+        for x = pos.x - castle_width/2, pos.x + castle_width/2, 3 do
+            for z = pos.z - castle_width/2, pos.z + castle_width/2, 3 do
+                local idx = area:index(math.floor(x), floor_y, math.floor(z))
+                if not is_floor_node(data[idx]) then
                     return false
                 end
             end
         end
+
+        -- Check for air above (castle needs vertical space)
+        for y = pos.y, pos.y + castle_height do
+            for x = pos.x - 8, pos.x + 8, 3 do
+                for z = pos.z - 8, pos.z + 8, 3 do
+                    local idx = area:index(math.floor(x), y, math.floor(z))
+                    if data[idx] ~= c_air then
+                        return false
+                    end
+                end
+            end
+        end
+
+        return true
+    end)
+
+    if not success then
+        minetest.log("warning", "[Lualore] Error in is_valid_cave_floor: " .. tostring(result))
+        return false
     end
 
-    return true
+    return result
 end
 
 -- Mapgen callback for castle spawning
 minetest.register_on_generated(function(minp, maxp, blockseed)
-    -- Only check deep underground
-    if minp.y > -100 or maxp.y < -8000 then
-        return
-    end
+    local success, error_msg = pcall(function()
+        -- Only check deep underground
+        if minp.y > -100 or maxp.y < -8000 then
+            return
+        end
 
-    -- Rare chance per chunk
-    local pr = PcgRandom(blockseed + 8492)
-    if pr:next(1, 500) ~= 1 then  -- 1 in 500 chance per chunk (for testing)
-        return
-    end
+        -- Rare chance per chunk
+        local pr = PcgRandom(blockseed + 8492)
+        if pr:next(1, 500) ~= 1 then  -- 1 in 500 chance per chunk (for testing)
+            return
+        end
 
-    minetest.log("action", "[Lualore] Attempting castle spawn in chunk " ..
-        minetest.pos_to_string(minp) .. " to " .. minetest.pos_to_string(maxp))
+        minetest.log("action", "[Lualore] Attempting castle spawn in chunk " ..
+            minetest.pos_to_string(minp) .. " to " .. minetest.pos_to_string(maxp))
 
-    -- Read the voxel data with a buffer (castle needs 20x15x20 space)
-    local vm = minetest.get_voxelmanip()
-    local buffer = 30  -- Extra space for castle checks
-    local read_minp = {x = minp.x - buffer, y = minp.y - buffer, z = minp.z - buffer}
-    local read_maxp = {x = maxp.x + buffer, y = maxp.y + buffer, z = maxp.z + buffer}
-    local emin, emax = vm:read_from_map(read_minp, read_maxp)
-    local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
-    local data = vm:get_data()
+        -- Read the voxel data with a buffer (castle needs 20x15x20 space)
+        local vm = minetest.get_voxelmanip()
+        local buffer = 30  -- Extra space for castle checks
+        local read_minp = {x = minp.x - buffer, y = minp.y - buffer, z = minp.z - buffer}
+        local read_maxp = {x = maxp.x + buffer, y = maxp.y + buffer, z = maxp.z + buffer}
+        local emin, emax = vm:read_from_map(read_minp, read_maxp)
+        local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
+        local data = vm:get_data()
 
-    -- Try to find a valid position in this chunk (stay well within original chunk bounds)
-    local attempts = 0
-    local margin = 15
-    while attempts < 10 do
-        attempts = attempts + 1
+        -- Try to find a valid position in this chunk (stay well within original chunk bounds)
+        local attempts = 0
+        local margin = 15
+        while attempts < 10 do
+            attempts = attempts + 1
 
-        local test_pos = {
-            x = pr:next(minp.x + margin, maxp.x - margin),
-            y = pr:next(minp.y + margin, maxp.y - margin),
-            z = pr:next(minp.z + margin, maxp.z - margin),
-        }
+            local test_pos = {
+                x = pr:next(minp.x + margin, maxp.x - margin),
+                y = pr:next(minp.y + margin, maxp.y - margin),
+                z = pr:next(minp.z + margin, maxp.z - margin),
+            }
 
-        -- Check if position has valid floor
-        if is_valid_cave_floor(test_pos, data, area) then
-            -- Check if far enough from other castles
-            if is_far_from_castles(test_pos) then
-                -- Schedule castle placement (must be done after mapgen completes)
-                minetest.after(0.1, function()
-                    local schematic_path = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts"
-                    local success = minetest.place_schematic(
-                        {x=test_pos.x, y=test_pos.y-8, z=test_pos.z},
-                        schematic_path,
-                        "random",
-                        nil,
-                        true,
-                        "place_center_x, place_center_z"
-                    )
+            -- Check if position has valid floor
+            if is_valid_cave_floor(test_pos, data, area) then
+                -- Check if far enough from other castles
+                if is_far_from_castles(test_pos) then
+                    -- Schedule castle placement (must be done after mapgen completes)
+                    minetest.after(0.1, function()
+                        local schematic_path = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts"
+                        local success = minetest.place_schematic(
+                            {x=test_pos.x, y=test_pos.y-8, z=test_pos.z},
+                            schematic_path,
+                            "random",
+                            nil,
+                            true,
+                            "place_center_x, place_center_z"
+                        )
 
-                    if success then
-                        table.insert(castle_positions, test_pos)
-                        save_castle_positions()
-                        minetest.log("action", "[Lualore] Cave castle spawned at " ..
-                            minetest.pos_to_string(test_pos))
-                    else
-                        minetest.log("warning", "[Lualore] Failed to place castle schematic at " ..
-                            minetest.pos_to_string(test_pos))
-                    end
-                end)
-                return
-            else
-                minetest.log("action", "[Lualore] Valid floor found but too close to existing castle at " ..
-                    minetest.pos_to_string(test_pos))
+                        if success then
+                            table.insert(castle_positions, test_pos)
+                            save_castle_positions()
+                            minetest.log("action", "[Lualore] Cave castle spawned at " ..
+                                minetest.pos_to_string(test_pos))
+                        else
+                            minetest.log("warning", "[Lualore] Failed to place castle schematic at " ..
+                                minetest.pos_to_string(test_pos))
+                        end
+                    end)
+                    return
+                else
+                    minetest.log("action", "[Lualore] Valid floor found but too close to existing castle at " ..
+                        minetest.pos_to_string(test_pos))
+                end
             end
         end
-    end
 
-    minetest.log("action", "[Lualore] No valid castle location found after " .. attempts .. " attempts")
+        minetest.log("action", "[Lualore] No valid castle location found after " .. attempts .. " attempts")
+    end)
+
+    if not success then
+        minetest.log("error", "[Lualore] Error in castle spawning callback: " .. tostring(error_msg))
+    end
 end)
 
 -- Debug command to manually spawn a cave castle
