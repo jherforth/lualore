@@ -160,8 +160,9 @@ for _, wizard in ipairs(wizard_types) do
 	})
 
 	-- Register spawn egg
+	local display_name = wizard.name:gsub("^%l", string.upper)
 	mobs:register_egg(mob_name,
-		S(wizard.name:gsub("^%l", string.upper)),
+		S(display_name),
 		wizard.texture)
 end
 
