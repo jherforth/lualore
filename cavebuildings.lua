@@ -12,7 +12,7 @@ local S = minetest.get_translator("lualore")
 
 -- Storage for tracking castle positions to prevent clustering
 local castle_positions = {}
-local MIN_CASTLE_DISTANCE = 2000  -- Minimum distance between castles
+local MIN_CASTLE_DISTANCE = 1000  -- Minimum distance between castles
 local storage = minetest.get_mod_storage()
 
 -- Load castle positions from storage
