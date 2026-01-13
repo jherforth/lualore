@@ -1,14 +1,37 @@
 local S = minetest.get_translator("lualore")
 
 -- ===================================================================
+-- DM STATUE NODE (prize for defeating wizards)
+-- ===================================================================
+
+-- Register statue node if caverealms isn't loaded
+if not minetest.registered_nodes["caverealms:dm_statue"] then
+    minetest.register_node("caverealms:dm_statue", {
+        description = "Dungeon Master Statue",
+        tiles = {"default_obsidian.png^default_mese_crystal.png"},
+        groups = {cracky = 1, level = 2},
+        sounds = default.node_sound_stone_defaults(),
+        light_source = 5,
+        drop = {
+            max_items = 3,
+            items = {
+                {items = {"default:diamond 5"}, rarity = 1},
+                {items = {"default:mese_crystal 7"}, rarity = 1},
+                {items = {"default:obsidian 3"}, rarity = 1},
+            }
+        }
+    })
+end
+
+-- ===================================================================
 -- CAVE CASTLE SPAWNING - Simple decoration approach like villages
 -- ===================================================================
 
--- Simple noise parameters for rare spawning
+-- Simple noise parameters for rare spawning (~800 node spacing)
 local cave_castle_noise = {
     offset = 0,
     scale = 1,
-    spread = {x = 1000, y = 1000, z = 1000},
+    spread = {x = 800, y = 800, z = 800},  -- 800 node spacing
     seed = 8492,
     octaves = 3,
     persist = 0.5,
@@ -29,7 +52,7 @@ minetest.register_decoration({
         "default:mossycobble",
     },
     sidelen = 80,
-    fill_ratio = 0.0001,  -- Very rare
+    fill_ratio = 0.00005,  -- Very rare - one per ~800 nodes
     noise_params = cave_castle_noise,
     y_min = -8000,
     y_max = -20,
@@ -76,6 +99,47 @@ minetest.register_chatcommand("spawn_cavecastle", {
             return true, "Cave castle spawned at " .. minetest.pos_to_string(pos)
         else
             return false, "Failed to spawn cave castle"
+        end
+    end,
+})
+
+-- Debug command to find nearest statue
+minetest.register_chatcommand("find_statue", {
+    params = "<radius>",
+    description = "Find nearest dm_statue within radius (default 100)",
+    privs = {server = true},
+    func = function(name, param)
+        local player = minetest.get_player_by_name(name)
+        if not player then
+            return false, "Player not found"
+        end
+
+        local pos = player:get_pos()
+        local radius = tonumber(param) or 100
+
+        local statues = minetest.find_nodes_in_area(
+            {x = pos.x - radius, y = pos.y - radius, z = pos.z - radius},
+            {x = pos.x + radius, y = pos.y + radius, z = pos.z + radius},
+            {"caverealms:dm_statue"}
+        )
+
+        if #statues > 0 then
+            local nearest = statues[1]
+            local min_dist = vector.distance(pos, nearest)
+
+            for _, statue_pos in ipairs(statues) do
+                local dist = vector.distance(pos, statue_pos)
+                if dist < min_dist then
+                    min_dist = dist
+                    nearest = statue_pos
+                end
+            end
+
+            return true, "Found " .. #statues .. " statues. Nearest at " ..
+                        minetest.pos_to_string(nearest) ..
+                        " (distance: " .. math.floor(min_dist) .. " nodes)"
+        else
+            return false, "No statues found within " .. radius .. " nodes"
         end
     end,
 })

@@ -261,27 +261,27 @@ local function get_castle_key(pos)
 end
 
 local function find_cave_castle_center(minp, maxp)
-	-- Look for castle-specific blocks (obsidian, unique structures)
-	local castle_markers = minetest.find_nodes_in_area(
+	-- Look for dm_statue nodes (the prize/spawn point in the castle)
+	local statue_positions = minetest.find_nodes_in_area(
 		minp,
 		maxp,
-		{"default:obsidian"}
+		{"caverealms:dm_statue"}
 	)
 
-	-- Need significant obsidian presence to indicate a castle
-	if #castle_markers > 50 then
-		-- Find the center of the obsidian cluster
-		local center = {x=0, y=0, z=0}
-		for _, pos in ipairs(castle_markers) do
-			center.x = center.x + pos.x
-			center.y = center.y + pos.y
-			center.z = center.z + pos.z
-		end
-		center.x = math.floor(center.x / #castle_markers)
-		center.y = math.floor(center.y / #castle_markers)
-		center.z = math.floor(center.z / #castle_markers)
+	-- If we found a statue, spawn wizards around it
+	if #statue_positions > 0 then
+		-- Use the first statue as the spawn center
+		local statue_pos = statue_positions[1]
 
-		return center
+		-- Spawn wizards slightly above the statue position
+		local spawn_center = {
+			x = statue_pos.x,
+			y = statue_pos.y + 1,
+			z = statue_pos.z
+		}
+
+		minetest.log("action", "[lualore] Found dm_statue at " .. minetest.pos_to_string(statue_pos))
+		return spawn_center
 	end
 
 	return nil
@@ -422,6 +422,41 @@ minetest.register_chatcommand("spawn_wizard", {
 			return true, wizard_name .. " spawned!"
 		else
 			return false, "Failed to spawn " .. wizard_name
+		end
+	end,
+})
+
+-- Spawn wizards at nearest statue
+minetest.register_chatcommand("spawn_wizards_at_statue", {
+	params = "<radius>",
+	description = "Spawn wizard boss group at nearest statue (default radius: 100)",
+	privs = {give = true},
+	func = function(name, param)
+		local player = minetest.get_player_by_name(name)
+		if not player then return false, "Player not found" end
+
+		local pos = player:get_pos()
+		local radius = tonumber(param) or 100
+
+		local statues = minetest.find_nodes_in_area(
+			{x = pos.x - radius, y = pos.y - radius, z = pos.z - radius},
+			{x = pos.x + radius, y = pos.y + radius, z = pos.z + radius},
+			{"caverealms:dm_statue"}
+		)
+
+		if #statues > 0 then
+			local statue_pos = statues[1]
+			local spawn_pos = {x = statue_pos.x, y = statue_pos.y + 1, z = statue_pos.z}
+
+			local success = spawn_wizard_boss_group(spawn_pos)
+			if success then
+				return true, "Wizard boss group spawned at statue! Location: " ..
+				            minetest.pos_to_string(statue_pos)
+			else
+				return false, "Failed to spawn wizard boss group at statue"
+			end
+		else
+			return false, "No statues found within " .. radius .. " nodes"
 		end
 	end,
 })
