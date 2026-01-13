@@ -363,24 +363,7 @@ function lualore.wizard_magic.gold_levitate(self, target)
 	return true
 end
 
--- Spell 2: Shrinking Curse (yellow particles, shrink player for 5 seconds)
---
--- FIELD OF VIEW (FOV) ADJUSTMENT GUIDE:
--- The FOV parameter controls how "zoomed in" or "zoomed out" the player's view is when shrunken.
--- Values work as multipliers of the default FOV (typically 72 degrees in Minetest):
---
--- - FOV = 1.0: Normal view (72 degrees) - feels like regular gameplay
--- - FOV = 1.2: Slightly wider view (~86 degrees) - subtle zoom out
--- - FOV = 1.5: Moderately wider view (~108 degrees) - noticeable zoom out (CURRENT SETTING)
--- - FOV = 1.8: Wide view (~130 degrees) - significant zoom out, good peripheral vision
--- - FOV = 2.0: Very wide view (~144 degrees) - fish-eye effect starts to appear
--- - FOV = 0.8: Narrower view (~58 degrees) - zoomed in, claustrophobic
--- - FOV = 0.5: Very narrow view (~36 degrees) - extreme tunnel vision
---
--- TESTING TIP: Change the value at line ~437 (search for "target:set_fov") to test different values.
--- Higher values = wider view angle = less claustrophobic when small
--- Lower values = narrower view angle = more claustrophobic and tunnel-vision-like
---
+-- Spell 2: Disarm Curse (yellow particles, force player to drop wielded items for 5 seconds)
 function lualore.wizard_magic.gold_transform(self, target)
 	if not self or not self.object or not target or not target:is_player() then return false end
 
@@ -391,7 +374,7 @@ function lualore.wizard_magic.gold_transform(self, target)
 	local player_name = target:get_player_name()
 
 	-- Check if player already has this effect
-	if player_effects[player_name] and player_effects[player_name].shrunken then
+	if player_effects[player_name] and player_effects[player_name].disarmed then
 		return false
 	end
 
@@ -411,56 +394,52 @@ function lualore.wizard_magic.gold_transform(self, target)
 		player_effects[player_name] = {}
 	end
 
-	-- Store old values (only if not already stored to prevent compounding)
-	local old_physics = target:get_physics_override()
-	local old_visual_size = target:get_properties().visual_size
-	local old_fov = target:get_fov()
+	player_effects[player_name].disarmed = true
+	player_effects[player_name].disarm_timer = 5
+	player_effects[player_name].last_wield_index = nil
 
-	player_effects[player_name].shrunken = true
-	player_effects[player_name].shrink_timer = 5
+	-- Immediately drop whatever is in hand
+	local inv = target:get_inventory()
+	if inv then
+		local wield_index = target:get_wield_index()
+		local wielded_item = target:get_wielded_item()
 
-	-- Only store original values if not already stored (prevents compounding if check fails)
-	if not player_effects[player_name].old_shrink_physics then
-		player_effects[player_name].old_shrink_physics = old_physics
+		if wielded_item and not wielded_item:is_empty() then
+			-- Drop the item
+			local droppos = vector.add(target_pos, {x=0, y=1.2, z=0})
+			local obj = minetest.add_item(droppos, wielded_item)
+
+			if obj then
+				-- Give the dropped item some velocity away from player
+				local dir = target:get_look_dir()
+				obj:set_velocity({
+					x = dir.x * 3,
+					y = 2,
+					z = dir.z * 3
+				})
+			end
+
+			-- Remove from inventory
+			inv:set_stack("main", wield_index, ItemStack(""))
+		end
 	end
-	if not player_effects[player_name].old_visual_size then
-		player_effects[player_name].old_visual_size = old_visual_size
-	end
-	if not player_effects[player_name].old_fov then
-		player_effects[player_name].old_fov = old_fov
-	end
 
-	-- Shrink player model to half size (use base visual size to prevent compounding)
-	local base_visual_size = player_effects[player_name].old_visual_size
-	target:set_properties({
-		visual_size = {x = base_visual_size.x * 0.5, y = base_visual_size.y * 0.5}
-	})
-
-	-- Slow player down (use absolute values, not relative, to prevent compounding)
-	target:set_physics_override({
-		speed = 0.25,
-		jump = 0.5
-	})
-
-	-- Shrink field of view (wider to reduce claustrophobia)
-	target:set_fov(0.8, false, 0.8)
-
-	-- Visual effect with downward arrow particles
-	local spawner_id = minetest.add_particlespawner({
-		amount = 35,
+	-- Visual effect with X particles (disarm symbol)
+	minetest.add_particlespawner({
+		amount = 40,
 		time = 2,
 		minpos = {x = target_pos.x - 1, y = target_pos.y + 1, z = target_pos.z - 1},
 		maxpos = {x = target_pos.x + 1, y = target_pos.y + 2, z = target_pos.z + 1},
-		minvel = {x = -0.3, y = -2, z = -0.3},  -- Mostly downward velocity
-		maxvel = {x = 0.3, y = -0.8, z = 0.3},
+		minvel = {x = -1.5, y = -0.5, z = -1.5},
+		maxvel = {x = 1.5, y = 0.5, z = 1.5},
 		minacc = {x = 0, y = -0.5, z = 0},
 		maxacc = {x = 0, y = -1, z = 0},
 		minexptime = 1,
 		maxexptime = 2,
-		minsize = 2.5,
-		maxsize = 4.5,
+		minsize = 3,
+		maxsize = 5,
 		collisiondetection = false,
-		texture = "lualore_particle_arrow_down.png^[colorize:yellow:180",  -- Down arrow for shrinking
+		texture = "lualore_particle_x.png^[colorize:yellow:180",
 		glow = 12,
 	})
 
@@ -553,20 +532,6 @@ local function clear_all_effects(player)
 	-- Restore physics if any effect had changed them
 	if effects.old_physics then
 		player:set_physics_override(effects.old_physics)
-	elseif effects.old_shrink_physics then
-		player:set_physics_override(effects.old_shrink_physics)
-	end
-
-	-- Restore visual size if shrunken
-	if effects.old_visual_size then
-		player:set_properties({
-			visual_size = effects.old_visual_size
-		})
-	end
-
-	-- Restore FOV if changed
-	if effects.old_fov then
-		player:set_fov(effects.old_fov, false, 0.5)
 	end
 
 	-- Remove blindness particles
@@ -728,42 +693,69 @@ minetest.register_globalstep(function(dtime)
 			end
 		end
 
-		-- Shrinking
-		if effects.shrunken then
-			effects.shrink_timer = effects.shrink_timer - 0.1
+		-- Disarm effect
+		if effects.disarmed then
+			effects.disarm_timer = effects.disarm_timer - 0.1
 
-			if effects.shrink_timer <= 0 then
-				effects.shrunken = nil
+			-- Check if player has switched to a different item or picked up something
+			local current_wield_index = player:get_wield_index()
+			local wielded_item = player:get_wielded_item()
 
-				-- Restore original visual size
-				if effects.old_visual_size then
-					player:set_properties({
-						visual_size = effects.old_visual_size
+			if wielded_item and not wielded_item:is_empty() then
+				-- Player is holding something, drop it
+				local pos = player:get_pos()
+				local droppos = vector.add(pos, {x=0, y=1.2, z=0})
+				local obj = minetest.add_item(droppos, wielded_item)
+
+				if obj then
+					-- Give the dropped item some velocity
+					local dir = player:get_look_dir()
+					obj:set_velocity({
+						x = dir.x * 2,
+						y = 1.5,
+						z = dir.z * 2
 					})
-					effects.old_visual_size = nil
 				end
 
-				-- Restore original physics
-				if effects.old_shrink_physics then
-					player:set_physics_override(effects.old_shrink_physics)
-					effects.old_shrink_physics = nil
+				-- Remove from inventory
+				local inv = player:get_inventory()
+				if inv then
+					inv:set_stack("main", current_wield_index, ItemStack(""))
 				end
 
-				-- Restore original FOV
-				if effects.old_fov then
-					player:set_fov(effects.old_fov, false, 0.5)
-					effects.old_fov = nil
-				end
+				-- Small particle burst when dropping
+				minetest.add_particlespawner({
+					amount = 8,
+					time = 0.3,
+					minpos = {x = pos.x - 0.3, y = pos.y + 1, z = pos.z - 0.3},
+					maxpos = {x = pos.x + 0.3, y = pos.y + 1.5, z = pos.z + 0.3},
+					minvel = {x = -1, y = 0, z = -1},
+					maxvel = {x = 1, y = 1, z = 1},
+					minacc = {x = 0, y = -2, z = 0},
+					maxacc = {x = 0, y = -3, z = 0},
+					minexptime = 0.5,
+					maxexptime = 1,
+					minsize = 1.5,
+					maxsize = 2.5,
+					collisiondetection = false,
+					texture = "lualore_particle_x.png^[colorize:yellow:180",
+					glow = 10,
+				})
+			end
 
-				-- Shrink end particles (return to normal size)
+			if effects.disarm_timer <= 0 then
+				effects.disarmed = nil
+				effects.last_wield_index = nil
+
+				-- End particles (freedom from curse)
 				local pos = player:get_pos()
 				minetest.add_particlespawner({
-					amount = 30,
+					amount = 25,
 					time = 1,
 					minpos = {x = pos.x - 0.8, y = pos.y, z = pos.z - 0.8},
-					maxpos = {x = pos.x + 0.8, y = pos.y + 1, z = pos.z + 0.8},
+					maxpos = {x = pos.x + 0.8, y = pos.y + 1.5, z = pos.z + 0.8},
 					minvel = {x = -0.5, y = 1, z = -0.5},
-					maxvel = {x = 0.5, y = 2.5, z = 0.5},
+					maxvel = {x = 0.5, y = 2, z = 0.5},
 					minacc = {x = 0, y = 0.5, z = 0},
 					maxacc = {x = 0, y = 1, z = 0},
 					minexptime = 0.8,
@@ -771,7 +763,7 @@ minetest.register_globalstep(function(dtime)
 					minsize = 2,
 					maxsize = 3.5,
 					collisiondetection = false,
-					texture = "lualore_particle_arrow_up.png^[colorize:yellow:180",  -- Up arrows for growing back
+					texture = "lualore_particle_star.png^[colorize:yellow:180",
 					glow = 12,
 				})
 			end
