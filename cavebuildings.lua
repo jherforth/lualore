@@ -15,7 +15,7 @@ local function register_cave_central(params)
         place_on = {"everness:crystal_case_dirt_with_moss","caverealms:stone_with_moss","caverealms:stone_with_lichen","everness:crystal_cave_dirt_with_moss","everness:dirt_with_crystal_grass","everness:dirt_with_cursed_grass","everness:soul_sandstone_veined"},
         sidelen = 58,                          -- bigger grid for rare buildings
         noise_params = central_noise,
-        biomes = {"cave","everness:forsaken_cave"},
+        -- No biome restriction - spawns in any cavern with the correct node types
         y_min = -8000,
         y_max = 0,
 
