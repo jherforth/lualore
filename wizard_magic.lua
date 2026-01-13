@@ -77,7 +77,7 @@ function lualore.wizard_magic.red_teleport_attack(self, target)
 	local target_pos = target:get_pos()
 	if not target_pos then return false end
 
-	-- Play magic sound
+	-- Play magic sound (teleport uses generic magic sound)
 	minetest.sound_play("magic", {
 		pos = caster_pos,
 		gain = 0.3,
@@ -122,8 +122,9 @@ function lualore.wizard_magic.red_invert_controls(self, target)
 		return false
 	end
 
-	-- Play magic sound
-	minetest.sound_play("magic", {
+	-- Play red sound
+	local red_sound = math.random(1, 2)
+	minetest.sound_play("Red" .. red_sound, {
 		pos = caster_pos,
 		gain = 0.3,
 		max_hear_distance = 32
@@ -185,8 +186,9 @@ function lualore.wizard_magic.white_sick_curse(self, target)
 		return false
 	end
 
-	-- Play magic sound
-	minetest.sound_play("magic", {
+	-- Play green sound
+	local green_sound = math.random(1, 2)
+	minetest.sound_play("Green" .. green_sound, {
 		pos = caster_pos,
 		gain = 0.3,
 		max_hear_distance = 32
@@ -244,8 +246,9 @@ function lualore.wizard_magic.white_hyper_curse(self, target)
 		return false
 	end
 
-	-- Play magic sound
-	minetest.sound_play("magic", {
+	-- Play white sound
+	local white_sound = math.random(1, 2)
+	minetest.sound_play("White" .. white_sound, {
 		pos = caster_pos,
 		gain = 0.3,
 		max_hear_distance = 32
@@ -311,8 +314,9 @@ function lualore.wizard_magic.gold_levitate(self, target)
 		return false
 	end
 
-	-- Play magic sound
-	minetest.sound_play("magic", {
+	-- Play blue sound
+	local blue_sound = math.random(1, 2)
+	minetest.sound_play("Blue" .. blue_sound, {
 		pos = caster_pos,
 		gain = 0.3,
 		max_hear_distance = 32
@@ -374,8 +378,9 @@ function lualore.wizard_magic.gold_transform(self, target)
 		return false
 	end
 
-	-- Play magic sound
-	minetest.sound_play("magic", {
+	-- Play yellow sound
+	local yellow_sound = math.random(1, 2)
+	minetest.sound_play("Yellow" .. yellow_sound, {
 		pos = caster_pos,
 		gain = 0.3,
 		max_hear_distance = 32
@@ -455,8 +460,9 @@ function lualore.wizard_magic.black_blindness(self, target)
 		return false
 	end
 
-	-- Play magic sound
-	minetest.sound_play("magic", {
+	-- Play black sound
+	local black_sound = math.random(1, 2)
+	minetest.sound_play("Black" .. black_sound, {
 		pos = caster_pos,
 		gain = 0.3,
 		max_hear_distance = 32
