@@ -464,7 +464,7 @@ function lualore.wizard_magic.black_blindness(self, target)
 	local black_sound = math.random(1, 2)
 	minetest.sound_play("Black" .. black_sound, {
 		pos = caster_pos,
-		gain = 0.15,
+		gain = 0.1,
 		max_hear_distance = 32
 	}, true)
 
@@ -491,16 +491,16 @@ function lualore.wizard_magic.black_blindness(self, target)
 		local spawner_id = minetest.add_particlespawner({
 			amount = 50,  -- Particles spawned per second (increase for more density)
 			time = 0,  -- Infinite spawner (runs until manually deleted)
-			minpos = {x = -0.2, y = -0.2, z = 0.1},  -- Spawn area in front of player
-			maxpos = {x = 0.2, y = 0.2, z = 0.4},
+			minpos = {x = -0.1, y = -0.1, z = 0.05},  -- Spawn area in front of player
+			maxpos = {x = 0.3, y = 0.3, z = 0.5},
 			minvel = {x = -1.5, y = -1.5, z = -0.5},  -- Particle velocity (makes them swirl)
 			maxvel = {x = 1.5, y = 1.5, z = 0.5},
 			minacc = {x = 0, y = 0, z = 0},  -- No acceleration
-			maxacc = {x = 0, y = 0, z = 0},
+			maxacc = {x = 1, y = 1.5, z = 1},
 			minexptime = 0.8,  -- Particle lifetime (how long each particle exists)
 			maxexptime = 1.2,
-			minsize = 4,  -- Minimum particle size (increase for more coverage)
-			maxsize = 9,  -- Maximum particle size (increase for more coverage)
+			minsize = 5,  -- Minimum particle size (increase for more coverage)
+			maxsize = 10,  -- Maximum particle size (increase for more coverage)
 			collisiondetection = false,
 			attached = target,  -- Particles follow player
 			texture = "lualore_particle_circle.png^[colorize:black:255",  -- Black circle for blindness
