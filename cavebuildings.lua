@@ -53,6 +53,21 @@ local function is_valid_cave_floor(pos)
         ["default:sandstone"] = true,
         ["default:cobble"] = true,
         ["default:mossycobble"] = true,
+        ["everness:crystal_case_dirt_with_moss"] = true,
+        ["caverealms:stone_with_moss"] = true,
+        ["caverealms:stone_with_lichen"] = true,
+        ["everness:crystal_cave_dirt_with_moss"] = true,
+        ["everness:dirt_with_crystal_grass"] = true,
+        ["everness:dirt_with_cursed_grass"] = true,
+        ["everness:soul_sandstone_veined"] = true,
+        ["default:desert_cobble"] = true,
+        ["default:dry_dirt"] = true,
+        ["default:dry_dirt_with_dry_grass"] = true,
+        ["everness:moss_block"] = true,
+        ["default:clay"] = true,
+        ["everness:mineral_lava_stone_with_moss"] = true,
+        ["default:stone"] = true,
+        ["default:desert_stone"] = true,
     }
 
     if not floor_nodes[below.name] then
