@@ -60,8 +60,9 @@ local function is_cave_area(pos, radius)
         end
     end
 
-    -- At least 30% air means it's a cavern
-    return (air_count / total_checks) > 0.3
+    -- At least 20% air means it's a cavern (reduced from 30%)
+    local percentage = air_count / total_checks
+    return percentage > 0.2
 end
 
 -- Find a relatively flat spot in the area for castle placement
@@ -69,13 +70,13 @@ local function find_flat_spot(center_pos, search_radius)
     local best_pos = nil
     local best_flatness = 0
 
-    for attempt = 1, 20 do
+    for attempt = 1, 30 do
         local test_x = center_pos.x + math.random(-search_radius, search_radius)
         local test_z = center_pos.z + math.random(-search_radius, search_radius)
 
-        -- Find floor
+        -- Find floor (search wider range)
         local floor_y = nil
-        for y = center_pos.y + 10, center_pos.y - 20, -1 do
+        for y = center_pos.y + 20, center_pos.y - 30, -1 do
             local node = minetest.get_node({x = test_x, y = y, z = test_z})
             local above = minetest.get_node({x = test_x, y = y + 1, z = test_z})
 
@@ -86,12 +87,11 @@ local function find_flat_spot(center_pos, search_radius)
         end
 
         if floor_y then
-            -- Check flatness in a 7x7 area
+            -- Check flatness in a 5x5 area (reduced from 7x7)
             local flatness_score = 0
-            local valid = true
 
-            for dx = -3, 3 do
-                for dz = -3, 3 do
+            for dx = -2, 2 do
+                for dz = -2, 2 do
                     local check = {x = test_x + dx, y = floor_y, z = test_z + dz}
                     local below = {x = test_x + dx, y = floor_y - 1, z = test_z + dz}
                     local above = {x = test_x + dx, y = floor_y + 1, z = test_z + dz}
@@ -106,27 +106,24 @@ local function find_flat_spot(center_pos, search_radius)
                        node_below.name ~= "air" and
                        minetest.get_item_group(node_below.name, "liquid") == 0 then
                         flatness_score = flatness_score + 1
-                    else
-                        valid = false
-                        break
                     end
                 end
-                if not valid then break end
             end
 
-            if valid and flatness_score > best_flatness then
+            -- Accept if at least 60% flat (15 out of 25 blocks)
+            if flatness_score >= 15 and flatness_score > best_flatness then
                 best_flatness = flatness_score
                 best_pos = {x = test_x, y = floor_y, z = test_z}
 
-                -- If we found a very flat spot, use it
-                if flatness_score >= 45 then
+                -- If we found a very flat spot, use it immediately
+                if flatness_score >= 23 then
                     break
                 end
             end
         end
     end
 
-    return best_pos
+    return best_pos, best_flatness
 end
 
 -- Spawn a cave castle at the given position
@@ -138,8 +135,6 @@ local function spawn_cave_castle(pos)
     local rotation = rotations[math.random(#rotations)]
 
     minetest.place_schematic(pos, schematic_path, rotation, nil, true, "place_center_x, place_center_z")
-
-    minetest.log("action", "[lualore] Cave castle spawned at " .. minetest.pos_to_string(pos))
 end
 
 -- Mapgen callback - checks each chunk for cave castle spawn
@@ -152,9 +147,9 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
     local chunk_key = minetest.pos_to_string(minp)
     if spawned_castles[chunk_key] then return end
 
-    -- Random chance similar to dungeons (about 1 in 8 chunks)
+    -- Much higher spawn rate - 1 in 3 chunks instead of 1 in 8
     local pr = PseudoRandom(blockseed)
-    if pr:next(1, 8) ~= 1 then
+    if pr:next(1, 3) ~= 1 then
         spawned_castles[chunk_key] = false
         return
     end
@@ -173,12 +168,15 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
     end
 
     -- Find suitable flat spot
-    local spawn_pos = find_flat_spot(center, 25)
+    local spawn_pos, flatness = find_flat_spot(center, 30)
 
     if spawn_pos then
         spawn_cave_castle(spawn_pos)
         spawned_castles[chunk_key] = true
         save_spawned_castles()
+        minetest.log("action", "[lualore] Cave castle spawned at " ..
+                     minetest.pos_to_string(spawn_pos) ..
+                     " (flatness: " .. flatness .. "/25)")
     else
         spawned_castles[chunk_key] = false
     end
@@ -193,5 +191,25 @@ minetest.register_globalstep(function(dtime)
         save_spawned_castles()
     end
 end)
+
+-- Debug command to manually spawn a cave castle
+minetest.register_chatcommand("spawn_cavecastle", {
+    params = "",
+    description = "Spawn a cave castle at your current position (for testing)",
+    privs = {server = true},
+    func = function(name, param)
+        local player = minetest.get_player_by_name(name)
+        if not player then
+            return false, "Player not found"
+        end
+
+        local pos = player:get_pos()
+        pos.y = math.floor(pos.y)
+
+        spawn_cave_castle(pos)
+
+        return true, "Cave castle spawned at " .. minetest.pos_to_string(pos)
+    end,
+})
 
 print(S("[MOD] Lualore - Cave castles loaded (dungeon-style spawning)"))
