@@ -539,6 +539,59 @@ function lualore.wizard_magic.black_blindness(self, target)
 end
 
 --------------------------------------------------------------------
+-- CLEAR ALL EFFECTS (used on death/respawn)
+--------------------------------------------------------------------
+
+local function clear_all_effects(player)
+	if not player or not player:is_player() then return end
+
+	local player_name = player:get_player_name()
+	local effects = player_effects[player_name]
+
+	if not effects then return end
+
+	-- Restore physics if any effect had changed them
+	if effects.old_physics then
+		player:set_physics_override(effects.old_physics)
+	elseif effects.old_shrink_physics then
+		player:set_physics_override(effects.old_shrink_physics)
+	end
+
+	-- Restore visual size if shrunken
+	if effects.old_visual_size then
+		player:set_properties({
+			visual_size = effects.old_visual_size
+		})
+	end
+
+	-- Restore FOV if changed
+	if effects.old_fov then
+		player:set_fov(effects.old_fov, false, 0.5)
+	end
+
+	-- Remove blindness particles
+	if effects.blind_particles then
+		for _, spawner_id in ipairs(effects.blind_particles) do
+			minetest.delete_particlespawner(spawner_id)
+		end
+	end
+
+	-- Clear all effects for this player
+	player_effects[player_name] = nil
+end
+
+-- Clear effects on death
+minetest.register_on_dieplayer(function(player)
+	clear_all_effects(player)
+end)
+
+-- Clear effects on respawn (backup safety check)
+minetest.register_on_respawnplayer(function(player)
+	clear_all_effects(player)
+	return false  -- Don't override default respawn behavior
+end)
+
+--------------------------------------------------------------------
 -- EFFECT UPDATES (called every globalstep)
 --------------------------------------------------------------------
 
