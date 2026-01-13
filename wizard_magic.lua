@@ -273,12 +273,13 @@ function lualore.wizard_magic.white_hyper_curse(self, target)
 		jump = (old_physics.jump or 1) * 4
 	})
 
-	-- Visual effect with star particles
+	-- Visual effect with star particles attached to player
 	local spawner_id = minetest.add_particlespawner({
 		amount = 35,
 		time = 15,
-		minpos = {x = target_pos.x - 1, y = target_pos.y, z = target_pos.z - 1},
-		maxpos = {x = target_pos.x + 1, y = target_pos.y + 2, z = target_pos.z + 1},
+		attached = target,
+		minpos = {x = -1, y = 0, z = -1},
+		maxpos = {x = 1, y = 2, z = 1},
 		minvel = {x = -1.5, y = 0.5, z = -1.5},
 		maxvel = {x = 1.5, y = 2, z = 1.5},
 		minacc = {x = 0, y = 0, z = 0},
@@ -291,6 +292,12 @@ function lualore.wizard_magic.white_hyper_curse(self, target)
 		texture = "lualore_particle_star.png^[colorize:white:150",  -- Star shape for hyper speed
 		glow = 14,
 	})
+
+	-- Store spawner ID to clean up when effect ends
+	if not player_effects[player_name].hyper_particles then
+		player_effects[player_name].hyper_particles = {}
+	end
+	table.insert(player_effects[player_name].hyper_particles, spawner_id)
 
 	return true
 end
@@ -663,6 +670,13 @@ minetest.register_globalstep(function(dtime)
 				if effects.old_physics then
 					player:set_physics_override(effects.old_physics)
 					effects.old_physics = nil
+				end
+				-- Clean up particles
+				if effects.hyper_particles then
+					for _, spawner_id in ipairs(effects.hyper_particles) do
+						minetest.delete_particlespawner(spawner_id)
+					end
+					effects.hyper_particles = nil
 				end
 			end
 		end

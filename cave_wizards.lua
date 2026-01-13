@@ -34,6 +34,7 @@ local wizard_types = {
 	{
 		name = "redWizard",
 		texture = "redWizard.png",
+		armor_item = "3d_armor:chestplate_bronze",
 		do_custom = lualore.wizard_magic.red_do_custom,
 		drops = {
 			{name = "default:mese_crystal", chance = 1, min = 2, max = 5},
@@ -43,6 +44,7 @@ local wizard_types = {
 	{
 		name = "whiteWizard",
 		texture = "whiteWizard.png",
+		armor_item = "3d_armor:chestplate_steel",
 		do_custom = lualore.wizard_magic.white_do_custom,
 		drops = {
 			{name = "default:mese_crystal", chance = 1, min = 2, max = 5},
@@ -52,6 +54,7 @@ local wizard_types = {
 	{
 		name = "goldWizard",
 		texture = "goldenWizard.png",
+		armor_item = "3d_armor:chestplate_gold",
 		do_custom = lualore.wizard_magic.gold_do_custom,
 		drops = {
 			{name = "default:mese_crystal", chance = 1, min = 2, max = 5},
@@ -62,6 +65,7 @@ local wizard_types = {
 	{
 		name = "blackWizard",
 		texture = "blackWizard.png",
+		armor_item = "3d_armor:chestplate_mithril",
 		do_custom = lualore.wizard_magic.black_do_custom,
 		drops = {
 			{name = "default:mese_crystal", chance = 1, min = 2, max = 5},
@@ -70,6 +74,29 @@ local wizard_types = {
 		}
 	}
 }
+
+-- Helper function to update wizard armor visual
+local function update_wizard_armor(self, wizard_texture, armor_item)
+	if not self or not self.object then return end
+
+	local armor_level = self.armor or 0
+
+	if armor_level > 0 and armor_item then
+		-- Get armor texture from item name
+		-- Format: 3d_armor:chestplate_type -> 3d_armor_chestplate_type.png
+		local armor_texture = armor_item:gsub(":", "_") .. ".png"
+
+		-- Combine wizard texture with armor overlay
+		self.object:set_properties({
+			textures = {wizard_texture .. "^" .. armor_texture}
+		})
+	else
+		-- No armor - just base texture
+		self.object:set_properties({
+			textures = {wizard_texture}
+		})
+	end
+end
 
 -- Register each wizard as a mob
 for _, wizard in ipairs(wizard_types) do
@@ -123,10 +150,42 @@ for _, wizard in ipairs(wizard_types) do
 			die_rotate = true,
 		},
 
+		on_activate = function(self, staticdata, dtime_s)
+			-- Store wizard texture and armor info
+			self.wizard_base_texture = wizard.texture
+			self.wizard_armor_item = wizard.armor
+
+			-- Initialize armor visual
+			update_wizard_armor(self, wizard.texture, wizard.armor_item)
+		end,
+
+		on_punch = function(self, hitter, tflp, tool_capabilities, dir)
+			-- Call the default on_punch behavior first
+			if self.object then
+				-- Update armor visual after taking damage
+				minetest.after(0.1, function()
+					if self and self.object then
+						update_wizard_armor(self, wizard.texture, wizard.armor_item)
+					end
+				end)
+			end
+		end,
+
 		do_custom = function(self, dtime)
 			local success, err = pcall(function()
 				-- Always try to cast spells first
 				wizard.do_custom(self, dtime)
+
+				-- Periodically update armor visual (every 2 seconds)
+				if not self.armor_update_timer then
+					self.armor_update_timer = 0
+				end
+
+				self.armor_update_timer = self.armor_update_timer + dtime
+				if self.armor_update_timer >= 2 then
+					self.armor_update_timer = 0
+					update_wizard_armor(self, wizard.texture, wizard.armor_item)
+				end
 
 				-- Keep distance from target
 				if self.attack then
