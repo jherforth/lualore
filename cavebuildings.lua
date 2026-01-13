@@ -24,6 +24,7 @@ local cave_nodes = {
 
 -- Track spawned castles to avoid duplicates
 local spawned_castles = {}
+local last_spawned_pos = nil
 local storage = minetest.get_mod_storage()
 
 local function load_spawned_castles()
@@ -134,7 +135,27 @@ local function spawn_cave_castle(pos)
     local rotations = {"0", "90", "180", "270"}
     local rotation = rotations[math.random(#rotations)]
 
-    minetest.place_schematic(pos, schematic_path, rotation, nil, true, "place_center_x, place_center_z")
+    minetest.log("action", "[lualore] Attempting to place cave castle at " ..
+                 minetest.pos_to_string(pos) .. " with rotation " .. rotation)
+
+    -- Place schematic with force_placement in flags
+    local success = minetest.place_schematic(
+        pos,
+        schematic_path,
+        rotation,
+        nil,
+        true,
+        "place_center_x,place_center_z,force_placement"
+    )
+
+    if success then
+        last_spawned_pos = table.copy(pos)
+        minetest.log("action", "[lualore] Cave castle placement SUCCESS at " .. minetest.pos_to_string(pos))
+    else
+        minetest.log("warning", "[lualore] Cave castle placement FAILED at " .. minetest.pos_to_string(pos))
+    end
+
+    return success
 end
 
 -- Mapgen callback - checks each chunk for cave castle spawn
@@ -171,12 +192,16 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
     local spawn_pos, flatness = find_flat_spot(center, 30)
 
     if spawn_pos then
-        spawn_cave_castle(spawn_pos)
-        spawned_castles[chunk_key] = true
-        save_spawned_castles()
-        minetest.log("action", "[lualore] Cave castle spawned at " ..
-                     minetest.pos_to_string(spawn_pos) ..
-                     " (flatness: " .. flatness .. "/25)")
+        local success = spawn_cave_castle(spawn_pos)
+        if success then
+            spawned_castles[chunk_key] = true
+            save_spawned_castles()
+            minetest.log("action", "[lualore] Cave castle CONFIRMED at " ..
+                         minetest.pos_to_string(spawn_pos) ..
+                         " (flatness: " .. flatness .. "/25)")
+        else
+            spawned_castles[chunk_key] = false
+        end
     else
         spawned_castles[chunk_key] = false
     end
@@ -206,9 +231,56 @@ minetest.register_chatcommand("spawn_cavecastle", {
         local pos = player:get_pos()
         pos.y = math.floor(pos.y)
 
+        local schematic_path = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts"
+
+        -- Check if file exists
+        local file = io.open(schematic_path, "r")
+        if not file then
+            return false, "Schematic file not found at: " .. schematic_path
+        end
+        file:close()
+
         spawn_cave_castle(pos)
 
-        return true, "Cave castle spawned at " .. minetest.pos_to_string(pos)
+        return true, "Cave castle spawned at " .. minetest.pos_to_string(pos) .. " (check debug.txt for errors)"
+    end,
+})
+
+-- Debug command to test schematic info
+minetest.register_chatcommand("test_cavecastle", {
+    params = "",
+    description = "Test cave castle schematic loading",
+    privs = {server = true},
+    func = function(name, param)
+        local schematic_path = minetest.get_modpath("lualore") .. "/schematics/cavecastle.mts"
+
+        local schematic = minetest.read_schematic(schematic_path, {})
+        if not schematic then
+            return false, "Failed to read schematic!"
+        end
+
+        return true, "Schematic loaded successfully! Size: " ..
+                     schematic.size.x .. "x" .. schematic.size.y .. "x" .. schematic.size.z
+    end,
+})
+
+-- Teleport to last spawned cave castle
+minetest.register_chatcommand("goto_cavecastle", {
+    params = "",
+    description = "Teleport to the last spawned cave castle",
+    privs = {server = true},
+    func = function(name, param)
+        if not last_spawned_pos then
+            return false, "No cave castle has been spawned yet!"
+        end
+
+        local player = minetest.get_player_by_name(name)
+        if not player then
+            return false, "Player not found"
+        end
+
+        player:set_pos(last_spawned_pos)
+        return true, "Teleported to cave castle at " .. minetest.pos_to_string(last_spawned_pos)
     end,
 })
 
