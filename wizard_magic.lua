@@ -322,7 +322,7 @@ function lualore.wizard_magic.gold_transform(self, target)
 	local old_fov = target:get_fov()
 
 	player_effects[player_name].shrunken = true
-	player_effects[player_name].shrink_timer = 15
+	player_effects[player_name].shrink_timer = 10
 	player_effects[player_name].old_shrink_physics = old_physics
 	player_effects[player_name].old_visual_size = old_visual_size
 	player_effects[player_name].old_fov = old_fov
@@ -339,7 +339,7 @@ function lualore.wizard_magic.gold_transform(self, target)
 	})
 
 	-- Shrink field of view
-	target:set_fov(0.5, false, 0.5)
+	target:set_fov(0.8, false, 0.8)
 
 	-- Visual effect
 	spawn_spiral_particles(target_pos, "yellow", 2, 1.5)
