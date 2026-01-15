@@ -217,4 +217,4 @@ function lualore.witch_magic.do_custom(self, dtime)
 	end
 end
 
-print(S("[MOD] Native Villages - Witch magic system loaded"))
+print(S("[MOD] LuaLore - Witch magic system loaded"))
