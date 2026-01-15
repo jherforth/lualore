@@ -30,10 +30,10 @@ local biome_spawn_config = {
 		markers = {"lualore:sledge"},
 		stay_near = {"lualore:sledge"}
 	},
-	cannibal = {
+	jungle = {
 		nodes = {"default:dirt_with_grass", "default:dirt_with_rainforest_litter"},
-		markers = {"lualore:cannibalshrine"},
-		stay_near = {"lualore:cannibalshrine"}
+		markers = {"lualore:jungleshrine"},
+		stay_near = {"lualore:jungleshrine"}
 	}
 }
 
@@ -216,7 +216,6 @@ local villager_classes = {
 		reach = 1,  -- Melee attack range
 		drops = {
 			{name = "default:mese_crystal", chance = 1, min = 0, max = 1},
-			{name = "lualore:zombietame", chance = 3, min = 0, max = 1}
 		},
 		trade_items = {},  -- Witches don't trade
 	},
@@ -618,10 +617,10 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 					self.state = "stand"
 					self:set_animation("stand")
 					self:set_velocity(0)
-					minetest.chat_send_player(name, S("Slavetrader stands still."))
+					minetest.chat_send_player(name, S("Your friend stands still."))
 				else
 					self.order = "follow"
-					minetest.chat_send_player(name, S("Slavetrader will follow you."))
+					minetest.chat_send_player(name, S("Your friend will follow you."))
 				end
 			end
 		end,
