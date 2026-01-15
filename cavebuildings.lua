@@ -11,8 +11,8 @@ lualore = lualore or {}
 -- This ensures only one castle spawns per large underground area
 lualore.cave_castle_noise = {
     offset = 0.0,
-    scale = 0.00007,          -- Extremely rare (10x rarer than central buildings)
-    spread = {x = 500, y = 500, z = 500},  -- Large spread for max rarity
+    scale = 0.00001,          -- Extremely rare (10x rarer than central buildings)
+    spread = {x = 800, y = 800, z = 800},  -- Large spread for max rarity
     seed = 192837465,         -- Unique seed for cave castles
     octaves = 3,
     persistence = 0.6,
