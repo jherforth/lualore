@@ -21,7 +21,6 @@ local marker_to_biome = {
     -- Desert
     ["lualore:hookah"] = "desert",
     ["lualore:desertcarpet"] = "desert",
-    ["lualore:desertcage"] = "desert",
     -- Ice
     ["lualore:sledge"] = "ice",
     -- Lake
@@ -29,11 +28,8 @@ local marker_to_biome = {
     ["lualore:hangingfish"] = "lake",
     -- Savanna
     ["lualore:savannashrine"] = "savanna",
-    ["lualore:savannathrone"] = "savanna",
-    ["lualore:savannavessels"] = "savanna",
     -- Jungle
-    ["lualore:cannibalshrine"] = "cannibal",
-    ["lualore:driedpeople"] = "cannibal",
+    ["lualore:jungleshrine"] = "cannibal",
 }
 
 -- Build the full list of marker nodes for biome detection
@@ -194,4 +190,4 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
     end)
 end)
 
-print(S("[MOD] Native Villages - Bed-based villager spawning loaded"))
+print(S("[MOD] LuaLore - Bed-based villager spawning loaded"))
