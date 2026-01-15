@@ -35,7 +35,7 @@ Scans for beds and spawns villagers to repopulate a village.
 - Ice/Arctic (sledge)
 - Lake (fishtrap, hanging fish)
 - Savanna (shrine)
-- Jungle (cannibal shrine)
+- Jungle (jungle shrine)
 
 ### `/reset_village_tracking`
 

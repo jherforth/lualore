@@ -13,7 +13,7 @@ The mod generates villages in six distinct biomes, each with unique architecture
 - **Savanna Villages** - Tribal communities with ceremonial shrines
 - **Lake Villages** - Fishing communities built near water
 - **Ice Villages** - Hardy settlements in frozen tundra
-- **Cannibal Villages** - Dangerous jungle tribes with unique customs
+- **Jungle Villages** - Dangerous jungle tribes with unique customs
 
 ### 👥 Diverse Villager Classes
 
@@ -123,7 +123,7 @@ Each biome features unique structures:
 - **Savanna**: Thatched huts, shrines, thrones, wells, witch houses
 - **Lake**: Waterfront houses, harbours, fish traps
 - **Ice**: Igloos, sledges, log piles, pelt storage
-- **Cannibal**: Tribal houses, cages, towers, ritual pits, shrines
+- **Jungle**: Tribal houses, cages, towers, ritual pits, shrines
 
 **Village Generation:**
 - Villages generate naturally in their respective biomes
