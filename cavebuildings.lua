@@ -75,7 +75,7 @@ minetest.register_decoration({
 -- When a castle spawns, it contains a caverealms:dm_statue
 -- We'll spawn wizards near these statues
 
-local wizard_colors = {"red", "white", "black", "golden"}
+local wizard_colors = {"red", "white", "black", "gold"}
 local spawned_statues = {}
 local storage = minetest.get_mod_storage()
 
