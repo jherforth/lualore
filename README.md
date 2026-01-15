@@ -288,7 +288,7 @@ lualore/
 
 ## Credits
 
-This mod builds upon various Luanti modding techniques and community contributions, including code and snippets from the following:
+This mod builds upon various Luanti modding techniques and community contributions, including code and snippets, and sometimes just good old inspiration, from the following:
 
 - FreeLikeGNU's Witches https://content.luanti.org/packages/FreeLikeGNU/witches
 - Shaft's Automatic Door Opening https://content.luanti.org/packages/shaft/auto_door
