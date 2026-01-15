@@ -29,7 +29,7 @@ local marker_to_biome = {
     -- Savanna
     ["lualore:savannashrine"] = "savanna",
     -- Jungle
-    ["lualore:jungleshrine"] = "cannibal",
+    ["lualore:jungleshrine"] = "jungle",
 }
 
 -- Build the full list of marker nodes for biome detection
