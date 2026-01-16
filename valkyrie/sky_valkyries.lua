@@ -207,10 +207,13 @@ for _, valkyrie in ipairs(valkyrie_types) do
 				self.wing_flap_timer = (self.wing_flap_timer or 0) + dtime
 
 				local hover_y = math.sin((self.hover_timer + (self.hover_offset or 0)) * 2) * 0.4
-				local wing_angle = math.sin(self.wing_flap_timer * 8) * 15
+				local wing_angle = math.sin(self.wing_flap_timer * 8) * 20
 
 				local vel = self.object:get_velocity()
+				local is_moving = false
 				if vel then
+					is_moving = math.abs(vel.x) > 0.5 or math.abs(vel.z) > 0.5 or math.abs(vel.y) > 0.5
+
 					if math.abs(vel.x) < 0.5 and math.abs(vel.z) < 0.5 then
 						self.object:set_velocity({x=vel.x, y=hover_y, z=vel.z})
 					elseif vel.y < -2 then
@@ -219,8 +222,19 @@ for _, valkyrie in ipairs(valkyrie_types) do
 				end
 
 				if self.object.set_bone_position then
-					self.object:set_bone_position("Arm_Left", {x=0, y=6.3, z=0}, {x=0, y=0, z=wing_angle})
-					self.object:set_bone_position("Arm_Right", {x=0, y=6.3, z=0}, {x=0, y=0, z=-wing_angle})
+					if is_moving then
+						self.object:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=90, y=0, z=0})
+						self.object:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=-90, y=0, z=0})
+
+						self.object:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=180 + wing_angle})
+						self.object:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=-180 - wing_angle})
+					else
+						self.object:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
+						self.object:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
+
+						self.object:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=10 + wing_angle})
+						self.object:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=-10 - wing_angle})
+					end
 				end
 
 				local target = self.attack
@@ -243,41 +257,42 @@ for _, valkyrie in ipairs(valkyrie_types) do
 					if player_pos and self_pos then
 						local distance = vector.distance(player_pos, self_pos)
 
-						if distance >= 4 and distance <= 25 then
-							if not self.strike_timer then
-								self.strike_timer = 0
+						if not self.strike_timer then
+							self.strike_timer = 0
+						end
+
+						self.strike_timer = self.strike_timer + dtime
+
+						if distance >= 4 and distance <= 25 and self.strike_timer >= self.strike_interval then
+							if not self.assigned_strikes or #self.assigned_strikes == 0 then
+								minetest.log("error", "[lualore] Valkyrie has no assigned strikes!")
+								self.assigned_strikes = lualore.valkyrie_strikes.assign_random_strikes()
 							end
 
-							self.strike_timer = self.strike_timer + dtime
+							local strike_func = self.assigned_strikes[self.current_strike]
 
-							if self.strike_timer >= self.strike_interval then
-								local strike_func = self.assigned_strikes[self.current_strike]
+							if strike_func and type(strike_func) == "function" then
+								minetest.log("action", "[lualore] Attempting strike " .. self.current_strike .. " at distance " .. math.floor(distance))
 
-								if strike_func then
-									local success = lualore.valkyrie_strikes.use_strike(self, strike_func, target)
-									if success then
-										self.current_strike = self.current_strike + 1
-										if self.current_strike > #self.assigned_strikes then
-											self.current_strike = 1
-										end
-
-										minetest.chat_send_player(target:get_player_name(),
-											S("Valkyrie unleashes a strike!"))
-										minetest.log("action", "[lualore] Valkyrie used strike on " .. target:get_player_name())
-									else
-										minetest.log("warning", "[lualore] Strike failed - cooldown active")
+								local success = lualore.valkyrie_strikes.use_strike(self, strike_func, target)
+								if success then
+									self.current_strike = self.current_strike + 1
+									if self.current_strike > #self.assigned_strikes then
+										self.current_strike = 1
 									end
-								else
-									minetest.log("error", "[lualore] Strike function is nil!")
-								end
 
-								self.strike_timer = 0
+									minetest.chat_send_player(target:get_player_name(),
+										S("Valkyrie unleashes a powerful strike!"))
+									minetest.log("action", "[lualore] Valkyrie successfully used strike on " .. target:get_player_name())
+
+									self.strike_timer = 0
+								else
+									minetest.log("warning", "[lualore] Strike failed - cooldown active")
+								end
+							else
+								minetest.log("error", "[lualore] Strike function is nil or not a function! Type: " .. type(strike_func))
+								minetest.log("error", "[lualore] Current strike index: " .. self.current_strike .. " / " .. #self.assigned_strikes)
 							end
-						elseif distance > 3 then
-							if not self.strike_timer then
-								self.strike_timer = 0
-							end
-							self.strike_timer = self.strike_timer + dtime
 						end
 
 						if distance > 8 and distance <= 25 then

@@ -274,11 +274,22 @@ lualore.valkyrie_strikes.all_strikes = {
 function lualore.valkyrie_strikes.assign_random_strikes()
 	local strikes = {}
 	local available = {1, 2, 3, 4, 5, 6, 7}
+	local selected_indices = {}
 
 	for i = 1, 2 do
 		local idx = math.random(1, #available)
-		table.insert(strikes, lualore.valkyrie_strikes.all_strikes[available[idx]])
+		local strike_num = available[idx]
+		table.insert(selected_indices, strike_num)
+		table.insert(strikes, lualore.valkyrie_strikes.all_strikes[strike_num])
 		table.remove(available, idx)
+	end
+
+	minetest.log("action", "[lualore] Assigned strikes: " .. selected_indices[1] .. " and " .. selected_indices[2])
+
+	for i, strike in ipairs(strikes) do
+		if type(strike) ~= "function" then
+			minetest.log("error", "[lualore] Strike " .. i .. " is not a function! Type: " .. type(strike))
+		end
 	end
 
 	return strikes
