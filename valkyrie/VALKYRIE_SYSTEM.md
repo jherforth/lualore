@@ -92,10 +92,12 @@ The floating islands contain four powerful Valkyrie Sentinels that spawn randoml
 ### Automatic Spawning
 - Valkyries spawn individually and randomly in sky fortresses on floating islands
 - Only spawns in generated floating islands (Y > 500)
-- Requires significant cloudstone or aether block presence (50+ blocks) to detect fortress
-- Each fortress spawns valkyrie only once (tracked in mod storage)
+- Requires significant everness:dirt_with_crystal_grass presence (50+ blocks) to detect fortress
+- Each fortress spawns a single valkyrie (tracked in mod storage)
+- Sky castle spawns contain a single everness:dirt_with_crystal_grass node to link the spawn of the Valkyrie to.
 - Valkyries patrol in a defensive circle around the fortress center
-- The corresponding wing color will spawn on the player model
+- The corresponding wing color will spawn on the player model and be visible
+- Valkyrie can fly as a result of their wings.
 
 ### Strike Assignments
 - Two of the seven strikes are assigned at random to the spawned Valkyrie
@@ -130,7 +132,6 @@ Examples:
 - Healing items (bread, golden apples, or sky potions)
 - Ranged weapons (bows) and melee sword for mix
 - Glider mods for aerial mobility
-- Water bucket (negates fall damage)
 - Torches for illuminating dark storm effects
 
 ## Files Modified/Created
@@ -171,7 +172,7 @@ Custom particle textures:
 - `lualore_particle_stormswirl.png` - Swirls for veils
 
 ### Strike Cooldowns
-All strikes have a 2.5-second cooldown for relentless sky battles.
+All strikes have a 2 second cooldown for relentless sky battles.
 
 ### Rewards
 The wings of the Valkyrie will be the reward, and each color will have varying durability during flight.
