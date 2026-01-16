@@ -174,10 +174,22 @@ for _, wizard in ipairs(wizard_types) do
 			-- Initialize armor visual
 			update_wizard_armor(self, wizard.texture, wizard.armor_item)
 
-			-- Ensure wand is visible - delay slightly to ensure entity is fully initialized
+			-- Set wield_item using multiple methods to ensure it works
 			if self.wizard_wand then
+				-- Method 1: Set directly on entity (mobs_redo way)
+				self.wield_item = self.wizard_wand
+
+				-- Method 2: Set via properties
+				self.object:set_properties({
+					wield_item = self.wizard_wand
+				})
+
+				minetest.log("action", "[lualore] Set wield_item for " .. wizard.name .. " to " .. self.wizard_wand)
+
+				-- Also set with delay to ensure it sticks
 				minetest.after(0.1, function()
 					if self and self.object then
+						self.wield_item = self.wizard_wand
 						self.object:set_properties({
 							wield_item = self.wizard_wand
 						})
@@ -200,15 +212,18 @@ for _, wizard in ipairs(wizard_types) do
 
 		do_custom = function(self, dtime)
 			local success, err = pcall(function()
-				-- Ensure wand is always visible
-				if not self.wand_checked then
+				-- Ensure wand is set
+				if not self.wizard_wand then
 					self.wizard_wand = wizard.wand_item
-					self.wand_checked = true
-					if self.wizard_wand then
-						self.object:set_properties({
-							wield_item = self.wizard_wand
-						})
-					end
+				end
+
+				-- Force wand to be visible always using both methods
+				if self.wizard_wand then
+					-- Set both ways to maximize compatibility
+					self.wield_item = self.wizard_wand
+					self.object:set_properties({
+						wield_item = self.wizard_wand
+					})
 				end
 
 				-- Always try to cast spells first

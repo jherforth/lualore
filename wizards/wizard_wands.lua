@@ -597,4 +597,23 @@ minetest.register_on_leaveplayer(function(player)
 	player_cooldowns[player_name] = nil
 end)
 
+-- Debug command to test wands
+minetest.register_chatcommand("test_wands", {
+	params = "",
+	description = "Give yourself all wizard wands for testing",
+	privs = {give = true},
+	func = function(name, param)
+		local player = minetest.get_player_by_name(name)
+		if not player then return false, "Player not found" end
+
+		local inv = player:get_inventory()
+		inv:add_item("main", "lualore:gold_wand")
+		inv:add_item("main", "lualore:white_wand")
+		inv:add_item("main", "lualore:red_wand")
+		inv:add_item("main", "lualore:black_wand")
+
+		return true, "All wands added to inventory!"
+	end,
+})
+
 print(S("[MOD] Lualore - Wizard wands loaded"))
