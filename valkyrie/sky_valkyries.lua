@@ -159,15 +159,29 @@ for _, valkyrie in ipairs(valkyrie_types) do
 
 			if not self.assigned_strikes then
 				self.assigned_strikes = lualore.valkyrie_strikes.assign_random_strikes()
+				minetest.log("action", "[lualore] Valkyrie assigned " .. #self.assigned_strikes .. " strikes")
 			end
 
 			self.current_strike = 1
 			self.strike_timer = 0
 			self.strike_interval = 2.5
+			self.hover_timer = 0
+			self.hover_offset = math.random() * 2 * math.pi
+			self.wing_flap_timer = 0
 
+			local combined_texture = valkyrie_texture .. "^" .. valkyrie_wing_texture
 			self.object:set_properties({
-				textures = {valkyrie_texture .. "^" .. valkyrie_wing_texture}
+				textures = {combined_texture}
 			})
+
+			minetest.after(0.5, function()
+				if self and self.object then
+					self.object:set_properties({
+						textures = {combined_texture}
+					})
+					minetest.log("action", "[lualore] Set Valkyrie texture: " .. combined_texture)
+				end
+			end)
 		end,
 
 		do_custom = function(self, dtime)
@@ -186,15 +200,50 @@ for _, valkyrie in ipairs(valkyrie_types) do
 					self.current_strike = 1
 				end
 
-				if self.attack and self.attack:is_player() then
-					local player = self.attack
-					local player_pos = player:get_pos()
-					local self_pos = self.object:get_pos()
+				local pos = self.object:get_pos()
+				if not pos then return end
+
+				self.hover_timer = (self.hover_timer or 0) + dtime
+				self.wing_flap_timer = (self.wing_flap_timer or 0) + dtime
+
+				local hover_y = math.sin((self.hover_timer + (self.hover_offset or 0)) * 2) * 0.4
+				local wing_angle = math.sin(self.wing_flap_timer * 8) * 15
+
+				local vel = self.object:get_velocity()
+				if vel then
+					if math.abs(vel.x) < 0.5 and math.abs(vel.z) < 0.5 then
+						self.object:set_velocity({x=vel.x, y=hover_y, z=vel.z})
+					elseif vel.y < -2 then
+						self.object:set_velocity({x=vel.x, y=vel.y * 0.7, z=vel.z})
+					end
+				end
+
+				if self.object.set_bone_position then
+					self.object:set_bone_position("Arm_Left", {x=0, y=6.3, z=0}, {x=0, y=0, z=wing_angle})
+					self.object:set_bone_position("Arm_Right", {x=0, y=6.3, z=0}, {x=0, y=0, z=-wing_angle})
+				end
+
+				local target = self.attack
+				if not target or not target:is_player() then
+					for _, player in ipairs(minetest.get_connected_players()) do
+						local player_pos = player:get_pos()
+						if player_pos and vector.distance(pos, player_pos) <= self.view_range then
+							self.attack = player
+							target = player
+							minetest.log("action", "[lualore] Valkyrie acquired target: " .. player:get_player_name())
+							break
+						end
+					end
+				end
+
+				if target and target:is_player() then
+					local player_pos = target:get_pos()
+					local self_pos = pos
 
 					if player_pos and self_pos then
 						local distance = vector.distance(player_pos, self_pos)
 
-						if distance >= 4 and distance <= 20 then
+						if distance >= 4 and distance <= 25 then
 							if not self.strike_timer then
 								self.strike_timer = 0
 							end
@@ -204,42 +253,78 @@ for _, valkyrie in ipairs(valkyrie_types) do
 							if self.strike_timer >= self.strike_interval then
 								local strike_func = self.assigned_strikes[self.current_strike]
 
-								if lualore.valkyrie_strikes.use_strike(self, strike_func, player) then
-									self.current_strike = self.current_strike + 1
-									if self.current_strike > #self.assigned_strikes then
-										self.current_strike = 1
+								if strike_func then
+									local success = lualore.valkyrie_strikes.use_strike(self, strike_func, target)
+									if success then
+										self.current_strike = self.current_strike + 1
+										if self.current_strike > #self.assigned_strikes then
+											self.current_strike = 1
+										end
+
+										minetest.chat_send_player(target:get_player_name(),
+											S("Valkyrie unleashes a strike!"))
+										minetest.log("action", "[lualore] Valkyrie used strike on " .. target:get_player_name())
+									else
+										minetest.log("warning", "[lualore] Strike failed - cooldown active")
 									end
+								else
+									minetest.log("error", "[lualore] Strike function is nil!")
 								end
 
 								self.strike_timer = 0
 							end
+						elseif distance > 3 then
+							if not self.strike_timer then
+								self.strike_timer = 0
+							end
+							self.strike_timer = self.strike_timer + dtime
 						end
 
-						if distance > 10 and not self.enraged then
+						if distance > 8 and distance <= 25 then
 							local dir = vector.direction(self_pos, player_pos)
+							dir.y = dir.y + 0.2
 							local dash_vel = vector.multiply(dir, 5)
-							self.object:add_velocity(dash_vel)
+							self.object:set_velocity(dash_vel)
 						end
 					end
 				end
 
-				local pos = self.object:get_pos()
 				if pos then
+					local wing_left = vector.add(pos, {x=-0.5, y=0.8, z=0})
+					local wing_right = vector.add(pos, {x=0.5, y=0.8, z=0})
+
 					minetest.add_particlespawner({
 						amount = 2,
 						time = 0.1,
-						minpos = vector.subtract(pos, {x=0.2, y=0.5, z=0.2}),
-						maxpos = vector.add(pos, {x=0.2, y=0.5, z=0.2}),
-						minvel = {x=-0.3, y=-0.5, z=-0.3},
-						maxvel = {x=0.3, y=-0.3, z=0.3},
-						minacc = {x=0, y=-0.5, z=0},
-						maxacc = {x=0, y=-0.5, z=0},
-						minexptime = 0.5,
-						maxexptime = 1.0,
-						minsize = 0.5,
-						maxsize = 1.5,
-						texture = "lualore_particle_star.png^[colorize:#FFFFFF:180",
-						glow = 8
+						minpos = vector.subtract(wing_left, {x=0.1, y=0.1, z=0.1}),
+						maxpos = vector.add(wing_left, {x=0.1, y=0.1, z=0.1}),
+						minvel = {x=-1, y=-0.5, z=-0.5},
+						maxvel = {x=-0.5, y=0, z=0.5},
+						minacc = {x=0, y=-0.2, z=0},
+						maxacc = {x=0, y=-0.2, z=0},
+						minexptime = 0.3,
+						maxexptime = 0.8,
+						minsize = 1.5,
+						maxsize = 2.5,
+						texture = "lualore_particle_star.png^[colorize:#FFFFFF:220",
+						glow = 12
+					})
+
+					minetest.add_particlespawner({
+						amount = 2,
+						time = 0.1,
+						minpos = vector.subtract(wing_right, {x=0.1, y=0.1, z=0.1}),
+						maxpos = vector.add(wing_right, {x=0.1, y=0.1, z=0.1}),
+						minvel = {x=0.5, y=-0.5, z=-0.5},
+						maxvel = {x=1, y=0, z=0.5},
+						minacc = {x=0, y=-0.2, z=0},
+						maxacc = {x=0, y=-0.2, z=0},
+						minexptime = 0.3,
+						maxexptime = 0.8,
+						minsize = 1.5,
+						maxsize = 2.5,
+						texture = "lualore_particle_star.png^[colorize:#FFFFFF:220",
+						glow = 12
 					})
 				end
 			end)
@@ -285,10 +370,54 @@ minetest.register_chatcommand("spawn_valkyrie", {
 		local obj = minetest.add_entity(spawn_pos, mob_name)
 
 		if obj then
+			local ent = obj:get_luaentity()
+			if ent and ent.assigned_strikes then
+				minetest.chat_send_player(name, S("Valkyrie assigned strikes: @1", #ent.assigned_strikes))
+				minetest.log("action", "[lualore] Valkyrie spawned with " .. #ent.assigned_strikes .. " strikes")
+			end
 			return true, S("Spawned @1 Valkyrie", valkyrie_type)
 		else
 			return false, S("Failed to spawn Valkyrie")
 		end
+	end
+})
+
+minetest.register_chatcommand("valkyrie_info", {
+	params = "",
+	description = S("Get info about nearby Valkyries"),
+	privs = {give = true},
+	func = function(name, param)
+		local player = minetest.get_player_by_name(name)
+		if not player then
+			return false, S("Player not found")
+		end
+
+		local pos = player:get_pos()
+		local objects = minetest.get_objects_inside_radius(pos, 30)
+		local found = false
+
+		for _, obj in ipairs(objects) do
+			local ent = obj:get_luaentity()
+			if ent and ent.name and ent.name:match("lualore:.*_valkyrie") then
+				found = true
+				local distance = vector.distance(pos, obj:get_pos())
+				local strikes = ent.assigned_strikes and #ent.assigned_strikes or 0
+				local current = ent.current_strike or 0
+				local timer = ent.strike_timer or 0
+
+				minetest.chat_send_player(name, S("Valkyrie: @1", ent.name))
+				minetest.chat_send_player(name, S("  Distance: @1", math.floor(distance)))
+				minetest.chat_send_player(name, S("  Strikes: @1", strikes))
+				minetest.chat_send_player(name, S("  Current Strike: @1", current))
+				minetest.chat_send_player(name, S("  Timer: @1", math.floor(timer * 10) / 10))
+			end
+		end
+
+		if not found then
+			return false, S("No Valkyries nearby")
+		end
+
+		return true
 	end
 })
 
