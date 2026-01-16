@@ -7,6 +7,9 @@ local S = minetest.get_translator("lualore")
 -- Track NPC effects to prevent stacking
 local npc_effects = {}
 
+-- Track player wand cooldowns
+local player_cooldowns = {}
+
 --------------------------------------------------------------------
 -- PARTICLE HELPER FUNCTIONS
 --------------------------------------------------------------------
@@ -130,13 +133,13 @@ local function gold_wand_levitate(user, pointed_thing)
 	npc_effects[entity_id].levitate_height = 0
 	npc_effects[entity_id].target = target
 
-	-- Store original physics and apply negative gravity to float up
+	-- Store original physics and apply strong upward acceleration
 	if target_entity.object then
 		local old_physics = target_entity.object:get_acceleration()
 		npc_effects[entity_id].old_acceleration = old_physics
 
-		-- Set upward acceleration (negative gravity)
-		target:set_acceleration({x = 0, y = 10, z = 0})
+		-- Set strong upward acceleration to lift NPCs
+		target:set_acceleration({x = 0, y = 20, z = 0})
 	end
 
 	-- Visual effect with upward arrow particles
@@ -317,10 +320,21 @@ end
 --------------------------------------------------------------------
 
 local function black_wand_blind(user, pointed_thing)
+	local player_name = user:get_player_name()
+
+	-- Check cooldown (2 seconds for black wand)
+	if player_cooldowns[player_name] and player_cooldowns[player_name].black_wand then
+		local time_left = player_cooldowns[player_name].black_wand - os.clock()
+		if time_left > 0 then
+			minetest.chat_send_player(player_name, string.format("Cooldown: %.1fs", time_left))
+			return
+		end
+	end
+
 	local target = get_pointed_npc(user)
 
 	if not target then
-		minetest.chat_send_player(user:get_player_name(), "No NPC in range or line of sight")
+		minetest.chat_send_player(player_name, "No NPC in range or line of sight")
 		return
 	end
 
@@ -387,6 +401,12 @@ local function black_wand_blind(user, pointed_thing)
 			glow = 0,
 		})
 	end
+
+	-- Set cooldown for black wand (2 seconds)
+	if not player_cooldowns[player_name] then
+		player_cooldowns[player_name] = {}
+	end
+	player_cooldowns[player_name].black_wand = os.clock() + 2
 end
 
 --------------------------------------------------------------------
@@ -479,8 +499,8 @@ minetest.register_globalstep(function(dtime)
 
 				-- Keep applying upward force during levitation phase
 				if effects.levitate_timer > 0 and effects.levitate_height < 10 then
-					-- Continue pushing upward
-					target:set_acceleration({x = 0, y = 10, z = 0})
+					-- Continue pushing upward with strong force
+					target:set_acceleration({x = 0, y = 20, z = 0})
 				else
 					-- Levitation ending or max height reached, restore gravity
 					target:set_acceleration({x = 0, y = -10, z = 0})
@@ -569,6 +589,12 @@ minetest.register_globalstep(function(dtime)
 
 		::continue::
 	end
+end)
+
+-- Clean up cooldowns when player leaves
+minetest.register_on_leaveplayer(function(player)
+	local player_name = player:get_player_name()
+	player_cooldowns[player_name] = nil
 end)
 
 print(S("[MOD] Lualore - Wizard wands loaded"))

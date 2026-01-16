@@ -174,11 +174,15 @@ for _, wizard in ipairs(wizard_types) do
 			-- Initialize armor visual
 			update_wizard_armor(self, wizard.texture, wizard.armor_item)
 
-			-- Ensure wand is visible
+			-- Ensure wand is visible - delay slightly to ensure entity is fully initialized
 			if self.wizard_wand then
-				self.object:set_properties({
-					wield_item = self.wizard_wand
-				})
+				minetest.after(0.1, function()
+					if self and self.object then
+						self.object:set_properties({
+							wield_item = self.wizard_wand
+						})
+					end
+				end)
 			end
 		end,
 
@@ -196,6 +200,17 @@ for _, wizard in ipairs(wizard_types) do
 
 		do_custom = function(self, dtime)
 			local success, err = pcall(function()
+				-- Ensure wand is always visible
+				if not self.wand_checked then
+					self.wizard_wand = wizard.wand_item
+					self.wand_checked = true
+					if self.wizard_wand then
+						self.object:set_properties({
+							wield_item = self.wizard_wand
+						})
+					end
+				end
+
 				-- Always try to cast spells first
 				wizard.do_custom(self, dtime)
 
