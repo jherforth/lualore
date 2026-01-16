@@ -1,63 +1,84 @@
-# Flat 2D butterfly wings sprite-style - for Luanti player back
-# All geometry at Y=0 (flat plane)
-# Facing +Z direction; rotate in-game if needed
+# Simple low-poly butterfly wings - back attachment style
+# Created for Luanti/Minetest player back model
+# Units: roughly 1.0 = 1 node/block scale — adjust in your mod
 
-o FlatButterflyWings
+o ButterflyWings
 
-# Central body (diamond / vertical shape)
-v  0.00  0.00  0.60
-v  0.00  0.00  0.90     # top of body
-v  0.00  0.00  0.00     # bottom of body
-v  0.12  0.00  0.45
-v -0.12  0.00  0.45
+# Body / central spine (tall thin diamond)
+v  0.00  0.50  0.00
+v  0.00 -0.80  0.00
+v  0.12 -0.40  0.00
+v -0.12 -0.40  0.00
+v  0.00 -0.10  0.00
+v  0.00  0.10  0.00
 
-# Left wing - upper + lower combined in angular blocks
-v -0.25  0.00  0.85
-v -0.55  0.00  0.70
-v -0.75  0.00  0.45
-v -0.65  0.00  0.20
-v -0.40  0.00  0.35
-v -0.30  0.00  0.10
-v -0.50  0.00  0.00
-v -0.35  0.00 -0.10
+# Left upper wing lobe (big angular shape)
+v -0.20  0.45 -0.05
+v -0.55  0.30 -0.15
+v -0.70  0.05 -0.25
+v -0.60 -0.20 -0.20
+v -0.35  0.10 -0.10
 
-# Right wing (mirror)
-v  0.25  0.00  0.85
-v  0.55  0.00  0.70
-v  0.75  0.00  0.45
-v  0.65  0.00  0.20
-v  0.40  0.00  0.35
-v  0.30  0.00  0.10
-v  0.50  0.00  0.00
-v  0.35  0.00 -0.10
+# Right upper wing lobe (mirror)
+v  0.20  0.45 -0.05
+v  0.55  0.30 -0.15
+v  0.70  0.05 -0.25
+v  0.60 -0.20 -0.20
+v  0.35  0.10 -0.10
 
-# Very simple triangulation / quad faces
+# Left lower wing lobe
+v -0.15  0.00 -0.08
+v -0.45 -0.25 -0.22
+v -0.55 -0.55 -0.28
+v -0.40 -0.70 -0.20
+v -0.25 -0.45 -0.12
+
+# Right lower wing lobe
+v  0.15  0.00 -0.08
+v  0.45 -0.25 -0.22
+v  0.55 -0.55 -0.28
+v  0.40 -0.70 -0.20
+v  0.25 -0.45 -0.12
+
+# Very simple flat-shaded faces (no texcoords/normals — Luanti can auto-generate or use flat shading)
 # Body
-f 1 2 4
-f 1 4 5
-f 1 5 3
-f 4 3 5
+f 1 5 6
+f 1 6 2
+f 3 2 6
+f 3 6 5
+f 4 2 3
+f 4 5 6
 
-# Left wing faces (roughly outlining the shape)
-f  6  7  8
-f  6  8  9
-f  9  8 10
-f 10 11  9
-f 11 12 13
-f 13 12 14
-f  6  9 11
-f 11 13 14
+# Left upper wing
+f 7 8 9
+f 7 9 10
+f 7 10 11
+f 11 10 12
+f 7 11 12
 
-# Right wing (mirrored)
-f 15 16 17
-f 15 17 18
-f 18 17 19
-f 19 20 18
-f 20 21 22
-f 22 21 23
-f 15 18 20
-f 20 22 23
+# Right upper wing (mirrored indexing)
+f 13 14 15
+f 13 15 16
+f 13 16 17
+f 17 16 18
+f 13 17 18
 
-# Optional: connect wings to body more visibly
-f  6  4  5
-f 15  4  5
+# Left lower wing
+f 19 20 21
+f 19 21 22
+f 19 22 23
+f 23 22 24
+f 19 23 24
+
+# Right lower wing
+f 25 26 27
+f 25 27 28
+f 25 28 29
+f 29 28 30
+f 25 29 30
+
+# Connect wings to body (simple bridges)
+f 7 5 11
+f 13 5 17
+f 19 6 23
+f 25 6 29
