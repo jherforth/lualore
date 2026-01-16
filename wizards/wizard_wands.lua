@@ -127,11 +127,17 @@ local function gold_wand_levitate(user, pointed_thing)
 
 	npc_effects[entity_id].levitate = true
 	npc_effects[entity_id].levitate_timer = 2.5
+	npc_effects[entity_id].levitate_height = 0
 	npc_effects[entity_id].target = target
 
-	-- Apply upward velocity
-	local vel = target:get_velocity()
-	target:set_velocity({x = vel.x, y = 8, z = vel.z})
+	-- Store original physics and apply negative gravity to float up
+	if target_entity.object then
+		local old_physics = target_entity.object:get_acceleration()
+		npc_effects[entity_id].old_acceleration = old_physics
+
+		-- Set upward acceleration (negative gravity)
+		target:set_acceleration({x = 0, y = 10, z = 0})
+	end
 
 	-- Visual effect with upward arrow particles
 	minetest.add_particlespawner({
@@ -218,9 +224,9 @@ local function white_wand_sick(user, pointed_thing)
 		glow = 12,
 	})
 
-	-- Initial damage
+	-- Initial damage (doubled for player use)
 	if target_entity.health then
-		target_entity.health = target_entity.health - 2
+		target_entity.health = target_entity.health - 4
 	end
 end
 
@@ -462,8 +468,37 @@ minetest.register_globalstep(function(dtime)
 		if effects.levitate then
 			effects.levitate_timer = effects.levitate_timer - 0.1
 
+			local pos = target:get_pos()
+			if pos then
+				-- Track height gained
+				if not effects.levitate_start_y then
+					effects.levitate_start_y = pos.y
+				end
+
+				effects.levitate_height = pos.y - effects.levitate_start_y
+
+				-- Keep applying upward force during levitation phase
+				if effects.levitate_timer > 0 and effects.levitate_height < 10 then
+					-- Continue pushing upward
+					target:set_acceleration({x = 0, y = 10, z = 0})
+				else
+					-- Levitation ending or max height reached, restore gravity
+					target:set_acceleration({x = 0, y = -10, z = 0})
+				end
+			end
+
 			if effects.levitate_timer <= 0 then
 				effects.levitate = nil
+				effects.levitate_start_y = nil
+				effects.levitate_height = nil
+
+				-- Restore normal gravity
+				if effects.old_acceleration then
+					target:set_acceleration(effects.old_acceleration)
+					effects.old_acceleration = nil
+				else
+					target:set_acceleration({x = 0, y = -10, z = 0})
+				end
 			end
 		end
 
@@ -475,12 +510,12 @@ minetest.register_globalstep(function(dtime)
 			if effects.sick_timer <= 0 then
 				effects.sick = nil
 			else
-				-- Apply damage every second
+				-- Apply damage every second (doubled for player use)
 				if effects.sick_damage_timer <= 0 then
 					effects.sick_damage_timer = 1
 
 					if target_entity.health then
-						target_entity.health = target_entity.health - 1
+						target_entity.health = target_entity.health - 2
 
 						-- Play sick sound
 						local pos = target:get_pos()

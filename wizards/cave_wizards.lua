@@ -100,12 +100,14 @@ local function update_wizard_armor(self, wizard_texture, armor_item)
 
 		-- Combine wizard texture with armor overlay
 		self.object:set_properties({
-			textures = {wizard_texture .. "^" .. armor_texture}
+			textures = {wizard_texture .. "^" .. armor_texture},
+			wield_item = self.wizard_wand or ""
 		})
 	else
 		-- No armor - just base texture (armor broke or depleted)
 		self.object:set_properties({
-			textures = {wizard_texture}
+			textures = {wizard_texture},
+			wield_item = self.wizard_wand or ""
 		})
 	end
 end
@@ -147,6 +149,7 @@ for _, wizard in ipairs(wizard_types) do
 		follow = {},
 		view_range = 20,
 		fear_height = 0,
+		wield_item = wizard.wand_item,
 		animation = {
 			speed_normal = 30,
 			stand_start = 0,
@@ -166,14 +169,15 @@ for _, wizard in ipairs(wizard_types) do
 			-- Store wizard texture and armor info
 			self.wizard_base_texture = wizard.texture
 			self.wizard_armor_item = wizard.armor
+			self.wizard_wand = wizard.wand_item
 
 			-- Initialize armor visual
 			update_wizard_armor(self, wizard.texture, wizard.armor_item)
 
-			-- Give wizard their wand as wielded item
-			if wizard.wand_item then
+			-- Ensure wand is visible
+			if self.wizard_wand then
 				self.object:set_properties({
-					wield_item = wizard.wand_item
+					wield_item = self.wizard_wand
 				})
 			end
 		end,
