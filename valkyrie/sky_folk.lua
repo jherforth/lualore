@@ -52,7 +52,10 @@ mobs:register_mob("lualore:sky_folk", {
 	textures = {{"sky_folk.png"}},
 	visual_size = {x=1.0, y=1.0},
 	makes_footstep_sound = true,
-	sounds = {},
+	sounds = {
+		random = "skyfolk",
+		distance = 10,
+	},
 	walk_velocity = 2.0,
 	walk_chance = 50,
 	run_velocity = 2.5,
