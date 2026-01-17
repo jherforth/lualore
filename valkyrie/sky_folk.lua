@@ -2,7 +2,7 @@ local S = minetest.get_translator("lualore")
 
 lualore.sky_folk = {}
 
-local humming_sounds = {"content", "neutral", "happy"}
+local humming_sounds = {"skyfolk1", "skyfolk2", "skyfolk3", "skyfolk4"}
 
 local function play_humming_sound(self)
 	if not self.sound_timer then
@@ -114,7 +114,7 @@ mobs:register_mob("lualore:sky_folk", {
 				glow = 8
 			})
 
-			local sound_name = "scared"
+			local sound_name = humming_sounds[math.random(1, #humming_sounds)]
 			minetest.sound_play(sound_name, {
 				pos = pos,
 				gain = 0.5,
