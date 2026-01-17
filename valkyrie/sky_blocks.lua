@@ -8,7 +8,7 @@ local wing_types = {
 	green = {
 		description = "Green Valkyrie Wings",
 		texture = "green_valkyrie_wings.png",
-		max_uses = 600,  -- 30 seconds at 20 ticks/sec
+		max_uses = 1200,  -- 120 seconds at 20 ticks/sec
 		speed_mult = 1.1,
 		color = "#00FF00",
 		lift_power = 0.8
@@ -16,7 +16,7 @@ local wing_types = {
 	blue = {
 		description = "Blue Valkyrie Wings",
 		texture = "blue_valkyrie_wings.png",
-		max_uses = 900,  -- 45 seconds at 20 ticks/sec
+		max_uses = 1800,  -- 180 seconds at 20 ticks/sec
 		speed_mult = 1.2,
 		color = "#00FFFF",
 		lift_power = 1.0
@@ -24,7 +24,7 @@ local wing_types = {
 	violet = {
 		description = "Violet Valkyrie Wings",
 		texture = "violet_valkyrie_wings.png",
-		max_uses = 900,  -- 45 seconds at 20 ticks/sec
+		max_uses = 2400,  -- 240 seconds at 20 ticks/sec
 		speed_mult = 1.35,
 		color = "#9000FF",
 		lift_power = 1.2
@@ -32,7 +32,7 @@ local wing_types = {
 	gold = {
 		description = "Gold Valkyrie Wings",
 		texture = "gold_valkyrie_wings.png",
-		max_uses = 1200,  -- 60 seconds at 20 ticks/sec
+		max_uses = 3600,  -- 360 seconds at 20 ticks/sec
 		speed_mult = 1.5,
 		color = "#FFD700",
 		lift_power = 1.5
@@ -52,7 +52,7 @@ local function attach_wings(parent_obj, wing_type)
         wing_entity:set_attach(
             parent_obj,
             "",  -- Attach to root bone
-            {x=0, y=10, z=5},  -- Position: up a bit, behind body (adjusted for 180 rotation)
+            {x=0, y=10, z=0},  -- Position: up a bit, behind body (adjusted for 180 rotation)
             {x=0, y=180, z=0}  -- Rotation: vertical wings aligned with player facing forward
         )
 
