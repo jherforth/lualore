@@ -220,39 +220,6 @@ for _, valkyrie in ipairs(valkyrie_types) do
                 local pos = self.object:get_pos()
                 if not pos then return end
 
-                self.hover_timer = (self.hover_timer or 0) + dtime
-                self.wing_flap_timer = (self.wing_flap_timer or 0) + dtime
-
-                local hover_y = math.sin((self.hover_timer + (self.hover_offset or 0)) * 2) * 0.4
-                local wing_angle = math.sin(self.wing_flap_timer * 8) * 20
-
-                local vel = self.object:get_velocity()
-                local is_moving = false
-                if vel then
-                    is_moving = math.abs(vel.x) > 0.5 or math.abs(vel.z) > 0.5 or math.abs(vel.y) > 0.5
-
-                    if math.abs(vel.x) < 0.5 and math.abs(vel.z) < 0.5 then
-                        self.object:set_velocity({x=vel.x, y=hover_y, z=vel.z})
-                    elseif vel.y < -2 then
-                        self.object:set_velocity({x=vel.x, y=vel.y * 0.7, z=vel.z})
-                    end
-                end
-
-                if self.object.set_bone_position then
-                    if is_moving then
-                        -- Rotate 180 degrees on Y and Z axes so valkyrie moves head-first belly-down
-                        self.object:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=-90, y=180, z=0})
-                        self.object:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=90, y=0, z=0})
-                        self.object:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=180 + wing_angle})
-                        self.object:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=-180 - wing_angle})
-                    else
-                        self.object:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
-                        self.object:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
-                        self.object:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=10 + wing_angle})
-                        self.object:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=-10 - wing_angle})
-                    end
-                end
-
                 local target = self.attack
                 if not target or not target:is_player() then
                     for _, player in ipairs(minetest.get_connected_players()) do
@@ -263,6 +230,48 @@ for _, valkyrie in ipairs(valkyrie_types) do
                             minetest.log("action", "[lualore] Valkyrie acquired target: " .. player:get_player_name())
                             break
                         end
+                    end
+                end
+
+                self.hover_timer = (self.hover_timer or 0) + dtime
+                self.wing_flap_timer = (self.wing_flap_timer or 0) + dtime
+
+                local hover_y = math.sin((self.hover_timer + (self.hover_offset or 0)) * 2) * 0.4
+                local wing_angle = math.sin(self.wing_flap_timer * 8) * 20
+
+                local vel = self.object:get_velocity()
+                local is_moving = false
+                local in_flight = false
+
+                if vel then
+                    is_moving = math.abs(vel.x) > 0.5 or math.abs(vel.z) > 0.5 or math.abs(vel.y) > 0.5
+                end
+
+                -- Only fly when in combat (has a target)
+                if target and target:is_player() then
+                    in_flight = true
+                    if vel then
+                        if math.abs(vel.x) < 0.5 and math.abs(vel.z) < 0.5 then
+                            self.object:set_velocity({x=vel.x, y=hover_y, z=vel.z})
+                        elseif vel.y < -2 then
+                            self.object:set_velocity({x=vel.x, y=vel.y * 0.7, z=vel.z})
+                        end
+                    end
+                end
+
+                if self.object.set_bone_position then
+                    if in_flight and is_moving then
+                        -- Flight mode: Rotate for head-first belly-down flying
+                        self.object:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=-90, y=180, z=0})
+                        self.object:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=90, y=0, z=0})
+                        self.object:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=180 + wing_angle})
+                        self.object:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=-180 - wing_angle})
+                    else
+                        -- Ground mode: Normal standing/walking pose
+                        self.object:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
+                        self.object:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
+                        self.object:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=10 + wing_angle})
+                        self.object:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=-10 - wing_angle})
                     end
                 end
 
