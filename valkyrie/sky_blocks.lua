@@ -39,31 +39,30 @@ local wing_types = {
 	}
 }
 
-local function attach_wings(player, wing_type)
-	if not player or not player:is_player() then return end
+local function attach_wings(parent_obj, wing_type)
+    if not parent_obj then return end
 
-	local player_name = player:get_player_name()
-	local wing_data = wing_types[wing_type]
-	if not wing_data then return end
+    local wing_data = wing_types[wing_type]
+    if not wing_data then return end
 
-	local pos = player:get_pos()
-	local wing_entity = minetest.add_entity(pos, "lualore:wing_visual")
+    local pos = parent_obj:get_pos()
+    local wing_entity = minetest.add_entity(pos, "lualore:wing_visual")
 
-	if wing_entity then
-		wing_entity:set_attach(
-			player,
-			"",
-			{x=0, y=5, z=-2},
-			{x=0, y=0, z=0}
-		)
+    if wing_entity then
+        wing_entity:set_attach(
+            parent_obj,
+            "",  -- Attach to root bone
+            {x=0, y=10, z=-5},  -- Position: up a bit, back from body (tweak as needed)
+            {x=90, y=0, z=0}  -- Rotation: adjust to angle the sprite like wings (e.g., slight tilt)
+        )
 
-		wing_entity:get_luaentity().wing_type = wing_type
-		wing_entity:set_properties({
-			textures = {wing_data.texture}
-		})
+        wing_entity:get_luaentity().wing_type = wing_type
+        wing_entity:set_properties({
+            textures = {wing_data.texture}
+        })
 
-		return wing_entity
-	end
+        return wing_entity
+    end
 end
 
 local function remove_wings(player)
@@ -150,30 +149,29 @@ for wing_type, wing_data in pairs(wing_types) do
 end
 
 minetest.register_entity("lualore:wing_visual", {
-	initial_properties = {
-		physical = false,
-		collide_with_objects = false,
-		pointable = false,
-		visual = "mesh",
-		mesh = "character.b3d",
-		textures = {"green_valkyrie_wings.png"},
-		visual_size = {x=1, y=1},
-		static_save = false,
-	},
+    initial_properties = {
+        physical = false,
+        collide_with_objects = false,
+        pointable = false,
+        visual = "upright_sprite",  -- Change to upright_sprite for basic PNG display
+        textures = {"green_valkyrie_wings.png"},  -- Default; overridden later
+        visual_size = {x=2, y=2},  -- Scale to fit (tweak for your PNG size; e.g., wider for wings)
+        static_save = false,
+    },
 
-	wing_type = "green",
+    wing_type = "green",
 
-	on_activate = function(self, staticdata)
-		self.object:set_armor_groups({immortal = 1})
-	end,
+    on_activate = function(self, staticdata)
+        self.object:set_armor_groups({immortal = 1})
+    end,
 
-	on_step = function(self, dtime)
-		local parent = self.object:get_attach()
-		if not parent then
-			self.object:remove()
-			return
-		end
-	end,
+    on_step = function(self, dtime)
+        local parent = self.object:get_attach()
+        if not parent then
+            self.object:remove()
+            return
+        end
+    end,
 })
 
 minetest.register_globalstep(function(dtime)
