@@ -52,8 +52,8 @@ local function attach_wings(parent_obj, wing_type)
         wing_entity:set_attach(
             parent_obj,
             "",  -- Attach to root bone
-            {x=0, y=10, z=-5},  -- Position: up a bit, back from body (tweak as needed)
-            {x=0, y=0, z=0}  -- Rotation: vertical wings when standing
+            {x=0, y=10, z=5},  -- Position: up a bit, behind body (adjusted for 180 rotation)
+            {x=0, y=180, z=0}  -- Rotation: vertical wings aligned with player facing forward
         )
 
         wing_entity:get_luaentity().wing_type = wing_type
@@ -101,6 +101,10 @@ local function activate_wings(player, wing_type)
 		wing_entity = wing_entity,
 		was_flying = false
 	}
+
+	-- Set initial standing pose with wings (facing forward)
+	player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=180, z=0})
+	player:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
 
 	minetest.chat_send_player(player_name, S("Wings equipped! Use jump to fly up, sneak to descend. Duration: @1s", wing_data.flight_time))
 end
@@ -204,8 +208,8 @@ minetest.register_globalstep(function(dtime)
 						wing_data.was_flying = true
 					end
 
-					player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=-90, y=0, z=0})
-					player:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=90, y=0, z=0})
+					player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=-90, y=180, z=0})
+					player:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=90, y=180, z=0})
 
 					if ctrl.jump then
 						player:add_velocity({x=0, y=wing_info.lift_power, z=0})
@@ -245,7 +249,7 @@ minetest.register_globalstep(function(dtime)
 					})
 				else
 					if wing_data.was_flying then
-						player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
+						player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=180, z=0})
 						player:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
 						player:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=0})
 						player:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=0})
