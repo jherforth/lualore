@@ -80,12 +80,13 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                 goto continue
             end
 
-            -- Skip beds in crystal forest biome - those are for sky folk, not regular villagers
+            -- Check for crystal forest biome - spawn sky folk instead of regular villagers
             local biome_data = minetest.get_biome_data(bed_pos)
+            local is_crystal_forest = false
             if biome_data then
                 local biome_name = minetest.get_biome_name(biome_data.biome)
-                if biome_name == "everness_crystal_forest" then
-                    goto continue
+                if biome_name and biome_name:match("crystal_forest") then
+                    is_crystal_forest = true
                 end
             end
 
@@ -123,7 +124,61 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                 goto continue
             end
 
-            -- Determine biome by looking for nearby markers
+            -- For crystal forest biomes, spawn sky folk
+            if is_crystal_forest then
+                -- Find spawn position 6 blocks away from the bed (outside the house)
+                local spawn_pos = nil
+
+                -- Try to find a good spawn position in a 6-block radius
+                for dx = -8, 8 do
+                    for dy = -1, 3 do
+                        for dz = -8, 8 do
+                            local dist = math.sqrt(dx*dx + dz*dz)
+                            -- Only check positions that are roughly 6 blocks away (between 5 and 7)
+                            if dist >= 5 and dist <= 7 then
+                                local check = {
+                                    x = bed_pos.x + dx,
+                                    y = bed_pos.y + dy,
+                                    z = bed_pos.z + dz
+                                }
+                                local node = minetest.get_node(check)
+                                local above = minetest.get_node({x=check.x, y=check.y+1, z=check.z})
+                                local below = minetest.get_node({x=check.x, y=check.y-1, z=check.z})
+
+                                -- Need air at position and above, and solid ground below
+                                if node.name == "air" and above.name == "air" and
+                                   minetest.get_item_group(below.name, "solid") == 1 then
+                                    spawn_pos = check
+                                    goto sky_folk_spawn_found
+                                end
+                            end
+                        end
+                    end
+                end
+                ::sky_folk_spawn_found::
+
+                -- Fallback if no suitable outdoor position found
+                if not spawn_pos then
+                    spawn_pos = {x = bed_pos.x + 6, y = bed_pos.y, z = bed_pos.z}
+                end
+
+                -- Spawn the sky folk
+                local obj = minetest.add_entity(spawn_pos, "lualore:sky_folk")
+                if obj then
+                    local luaent = obj:get_luaentity()
+                    if luaent then
+                        luaent.nv_house_pos = vector.new(bed_pos)
+                        luaent.nv_home_radius = 20
+                    end
+                    beds_with_villagers[bed_key] = true
+                    processed_beds[bed_key] = true
+                    minetest.log("action", "[lualore] Sky Folk spawned near bed at " ..
+                        minetest.pos_to_string(spawn_pos) .. " linked to bed at " .. bed_key)
+                end
+                goto continue
+            end
+
+            -- Determine biome by looking for nearby markers (for regular villagers)
             local biome = nil
             local markers_nearby = minetest.find_nodes_in_area(
                 {x = bed_pos.x - 30, y = bed_pos.y - 10, z = bed_pos.z - 30},

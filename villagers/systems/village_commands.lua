@@ -139,6 +139,16 @@ minetest.register_chatcommand("populate_village", {
                 goto continue
             end
 
+            -- Check if bed is in crystal forest biome
+            local biome_data = minetest.get_biome_data(bed_pos)
+            local is_crystal_forest = false
+            if biome_data then
+                local biome_name = minetest.get_biome_name(biome_data.biome)
+                if biome_name and biome_name:match("crystal_forest") then
+                    is_crystal_forest = true
+                end
+            end
+
             -- Handle bed pairs (avoid spawning 2 villagers for 1 double bed)
             local bed_pair_key = nil
             for _, offset in ipairs({{x=1,y=0,z=0}, {x=-1,y=0,z=0}, {x=0,y=0,z=1}, {x=0,y=0,z=-1}}) do
@@ -164,9 +174,14 @@ minetest.register_chatcommand("populate_village", {
             -- Find spawn position
             local spawn_pos = find_spawn_position(bed_pos)
 
-            -- Spawn random friendly villager of this biome
-            local class = friendly_classes[math.random(#friendly_classes)]
-            local mob_name = "lualore:" .. biome .. "_" .. class
+            -- Spawn sky folk for crystal forest, regular villagers for other biomes
+            local mob_name
+            if is_crystal_forest then
+                mob_name = "lualore:sky_folk"
+            else
+                local class = friendly_classes[math.random(#friendly_classes)]
+                mob_name = "lualore:" .. biome .. "_" .. class
+            end
 
             local obj = minetest.add_entity(spawn_pos, mob_name)
             if obj then
@@ -203,6 +218,84 @@ minetest.register_chatcommand("reset_village_tracking", {
     func = function(name, param)
         storage:set_string("beds_with_villagers", minetest.serialize({}))
         return true, "Village tracking data cleared. You can now use /populate_village to respawn villagers."
+    end,
+})
+
+-- Register a command to remove villagers in an area
+minetest.register_chatcommand("clear_villagers", {
+    params = "[radius]",
+    description = "Remove all villagers in a radius around you. Default radius: 50",
+    privs = {server = true},
+    func = function(name, param)
+        local player = minetest.get_player_by_name(name)
+        if not player then
+            return false, "Player not found."
+        end
+
+        local player_pos = player:get_pos()
+        local radius = tonumber(param) or 50
+
+        if radius < 5 or radius > 200 then
+            return false, "Radius must be between 5 and 200."
+        end
+
+        local removed_count = 0
+        local objects = minetest.get_objects_inside_radius(player_pos, radius)
+
+        for _, obj in ipairs(objects) do
+            local ent = obj:get_luaentity()
+            if ent and ent.name then
+                -- Check if it's a villager (matches biome_class pattern)
+                local is_villager = false
+                for biome, _ in pairs(marker_to_biome) do
+                    for _, class in ipairs(friendly_classes) do
+                        local mob_pattern = "lualore:" .. marker_to_biome[biome] .. "_" .. class
+                        if ent.name == mob_pattern then
+                            is_villager = true
+                            break
+                        end
+                    end
+                    if is_villager then break end
+                end
+
+                -- Also check for sky folk
+                if ent.name == "lualore:sky_folk" then
+                    is_villager = true
+                end
+
+                if is_villager then
+                    obj:remove()
+                    removed_count = removed_count + 1
+                end
+            end
+        end
+
+        -- Clear bed tracking for the area
+        local beds_with_villagers = {}
+        local data = storage:get_string("beds_with_villagers")
+        if data and data ~= "" then
+            beds_with_villagers = minetest.deserialize(data) or {}
+        end
+
+        local search_min = {x = player_pos.x - radius, y = player_pos.y - 30, z = player_pos.z - radius}
+        local search_max = {x = player_pos.x + radius, y = player_pos.y + 30, z = player_pos.z + radius}
+        local beds = minetest.find_nodes_in_area(search_min, search_max, "group:bed")
+
+        local cleared_beds = 0
+        for _, bed_pos in ipairs(beds) do
+            local bed_key = minetest.pos_to_string(bed_pos)
+            if beds_with_villagers[bed_key] then
+                beds_with_villagers[bed_key] = nil
+                cleared_beds = cleared_beds + 1
+            end
+        end
+
+        storage:set_string("beds_with_villagers", minetest.serialize(beds_with_villagers))
+
+        return true, string.format(
+            "Removed %d villagers and cleared %d bed tracking entries in %d block radius.",
+            removed_count, cleared_beds, radius
+        )
     end,
 })
 
