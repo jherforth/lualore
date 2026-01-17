@@ -52,7 +52,7 @@ local function attach_wings(parent_obj, wing_type)
         wing_entity:set_attach(
             parent_obj,
             "",  -- Attach to root bone
-            {x=0, y=10, z=5},  -- Position: up a bit, behind body
+            {x=0, y=10, z=10},  -- Position: up a bit, behind body
             -- ADJUSTMENT GUIDE:
             -- - Increase z (e.g., 6, 7) to move wings further back
             -- - Decrease z (e.g., 4, 3) to move wings closer to body
