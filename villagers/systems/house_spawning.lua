@@ -80,9 +80,13 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                 goto continue
             end
 
-            -- Skip beds at sky level (Y >= 400) - these are for sky folk, not regular villagers
-            if bed_pos.y >= 400 then
-                goto continue
+            -- Skip beds in crystal forest biome - those are for sky folk, not regular villagers
+            local biome_data = minetest.get_biome_data(bed_pos)
+            if biome_data then
+                local biome_name = minetest.get_biome_name(biome_data.biome)
+                if biome_name == "everness_crystal_forest" then
+                    goto continue
+                end
             end
 
             -- Check if this is part of a bed pair and mark both halves
