@@ -8,7 +8,7 @@ local wing_types = {
 	green = {
 		description = "Green Valkyrie Wings",
 		texture = "green_valkyrie_wings.png",
-		flight_time = 30,
+		max_uses = 600,  -- 30 seconds at 20 ticks/sec
 		speed_mult = 1.1,
 		color = "#00FF00",
 		lift_power = 0.8
@@ -16,7 +16,7 @@ local wing_types = {
 	blue = {
 		description = "Blue Valkyrie Wings",
 		texture = "blue_valkyrie_wings.png",
-		flight_time = 45,
+		max_uses = 900,  -- 45 seconds at 20 ticks/sec
 		speed_mult = 1.2,
 		color = "#00FFFF",
 		lift_power = 1.0
@@ -24,7 +24,7 @@ local wing_types = {
 	violet = {
 		description = "Violet Valkyrie Wings",
 		texture = "violet_valkyrie_wings.png",
-		flight_time = 45,
+		max_uses = 900,  -- 45 seconds at 20 ticks/sec
 		speed_mult = 1.35,
 		color = "#9000FF",
 		lift_power = 1.2
@@ -32,7 +32,7 @@ local wing_types = {
 	gold = {
 		description = "Gold Valkyrie Wings",
 		texture = "gold_valkyrie_wings.png",
-		flight_time = 60,
+		max_uses = 1200,  -- 60 seconds at 20 ticks/sec
 		speed_mult = 1.5,
 		color = "#FFD700",
 		lift_power = 1.5
@@ -79,28 +79,27 @@ local function remove_wings(player)
 	end
 end
 
-local function activate_wings(player, wing_type)
-	if not player or not player:is_player() then return end
+local function activate_wings(player, wing_type, itemstack, index)
+	if not player or not player:is_player() then return false end
 
 	local player_name = player:get_player_name()
 	local wing_data = wing_types[wing_type]
 
-	if not wing_data then return end
+	if not wing_data then return false end
 
 	if active_wings[player_name] then
 		minetest.chat_send_player(player_name, S("Wings already active!"))
-		return
+		return false
 	end
 
 	local wing_entity = attach_wings(player, wing_type)
 
 	active_wings[player_name] = {
 		wing_type = wing_type,
-		timer = 0,
-		flight_time = wing_data.flight_time,
 		wing_entity = wing_entity,
 		was_flying = false,
-		original_physics = player:get_physics_override()
+		original_physics = player:get_physics_override(),
+		wield_index = index
 	}
 
 	-- Enable flight physics
@@ -113,10 +112,12 @@ local function activate_wings(player, wing_type)
 	player:set_bone_override("Body", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=180, z=0}})
 	player:set_bone_override("Head", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=0, z=0}})
 
-	minetest.chat_send_player(player_name, S("Wings equipped! Use jump to fly up, sneak to descend. Duration: @1s", wing_data.flight_time))
+	minetest.chat_send_player(player_name, S("Wings equipped! Use jump to fly up, sneak to descend."))
+
+	return true
 end
 
-local function deactivate_wings(player, player_name)
+local function deactivate_wings(player, player_name, broken)
 	if not active_wings[player_name] then return end
 
 	local wing_data = active_wings[player_name]
@@ -150,25 +151,51 @@ local function deactivate_wings(player, player_name)
 				player:set_bone_override("Arm_Right", {position = {x=3, y=6.3, z=1}, rotation = {x=0, y=0, z=0}})
 			end
 		end)
+
+		if broken then
+			-- Remove the broken wings from inventory
+			local inv = player:get_inventory()
+			if inv and wing_data.wield_index then
+				local list = inv:get_list("main")
+				if list and list[wing_data.wield_index] then
+					list[wing_data.wield_index] = ItemStack("")
+					inv:set_list("main", list)
+				end
+			end
+			minetest.chat_send_player(player_name, S("Your wings have broken!"))
+		else
+			minetest.chat_send_player(player_name, S("Wings deactivated!"))
+		end
 	end
 
 	active_wings[player_name] = nil
-
-	if player and player:is_player() then
-		minetest.chat_send_player(player_name, S("Wings have expired!"))
-	end
 end
 
 for wing_type, wing_data in pairs(wing_types) do
-	minetest.register_craftitem("lualore:" .. wing_type .. "_wings", {
+	minetest.register_tool("lualore:" .. wing_type .. "_wings", {
 		description = S(wing_data.description),
 		inventory_image = wing_data.texture,
 		stack_max = 1,
 		on_use = function(itemstack, user, pointed_thing)
-			if not user or not user:is_player() then return end
+			if not user or not user:is_player() then return itemstack end
 
-			activate_wings(user, wing_type)
-			itemstack:take_item()
+			local player_name = user:get_player_name()
+
+			-- If wings are active, deactivate them
+			if active_wings[player_name] then
+				deactivate_wings(user, player_name, false)
+				return itemstack
+			end
+
+			-- Find the wielded item index
+			local inv = user:get_inventory()
+			local wield_index = user:get_wield_index()
+
+			-- Activate wings
+			if activate_wings(user, wing_type, itemstack, wield_index) then
+				-- Don't consume or modify the itemstack here - wear is added during flight
+			end
+
 			return itemstack
 		end
 	})
@@ -207,18 +234,44 @@ minetest.register_globalstep(function(dtime)
 		if not player then
 			active_wings[player_name] = nil
 		else
-			wing_data.timer = wing_data.timer + dtime
+			local wing_info = wing_types[wing_data.wing_type]
 
-			if wing_data.timer >= wing_data.flight_time then
-				deactivate_wings(player, player_name)
-			else
-				local remaining = wing_data.flight_time - wing_data.timer
+			-- Add wear to wings every tick
+			local inv = player:get_inventory()
+			if inv and wing_data.wield_index then
+				local list = inv:get_list("main")
+				if list and list[wing_data.wield_index] then
+					local itemstack = list[wing_data.wield_index]
+					if itemstack and itemstack:get_name() == "lualore:" .. wing_data.wing_type .. "_wings" then
+						-- Add wear based on max_uses
+						local wear_per_use = 65535 / wing_info.max_uses
+						local new_wear = itemstack:get_wear() + wear_per_use
 
-				if math.floor(remaining) == 10 and math.floor(remaining * 10) % 10 == 0 then
-					minetest.chat_send_player(player_name, S("Wings expire in @1 seconds!", math.floor(remaining)))
+						if new_wear >= 65535 then
+							-- Wings are broken
+							deactivate_wings(player, player_name, true)
+						else
+							itemstack:set_wear(new_wear)
+							list[wing_data.wield_index] = itemstack
+							inv:set_list("main", list)
+
+							-- Warn when low durability
+							local durability_percent = (1 - (new_wear / 65535)) * 100
+							if durability_percent <= 10 and durability_percent > 9 then
+								minetest.chat_send_player(player_name, S("Wings are almost broken!"))
+							end
+						end
+					else
+						-- Wings item was removed from slot
+						deactivate_wings(player, player_name, false)
+					end
+				else
+					deactivate_wings(player, player_name, false)
 				end
+			end
 
-				local wing_info = wing_types[wing_data.wing_type]
+			-- Only continue flight mechanics if wings are still active
+			if active_wings[player_name] then
 				local vel = player:get_velocity()
 				local ctrl = player:get_player_control()
 				local player_pos = player:get_pos()
@@ -288,12 +341,12 @@ end)
 
 minetest.register_on_leaveplayer(function(player)
 	local player_name = player:get_player_name()
-	deactivate_wings(player, player_name)
+	deactivate_wings(player, player_name, false)
 end)
 
 minetest.register_on_dieplayer(function(player)
 	local player_name = player:get_player_name()
-	deactivate_wings(player, player_name)
+	deactivate_wings(player, player_name, false)
 end)
 
 minetest.log("action", "[lualore] Sky wings system loaded")
