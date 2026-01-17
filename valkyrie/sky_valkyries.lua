@@ -1,8 +1,8 @@
 local S = minetest.get_translator("lualore")
 
--- Import functions from sky_blocks.lua so they are available here
+-- Import only the functions we need for spawning/attaching
 local attach_wings = lualore.sky_wings.attach_wings
-local remove_wings = lualore.sky_wings.remove_wings
+-- We NO LONGER need remove_wings as an import → we handle cleanup internally
 
 lualore.sky_valkyries = {}
 
@@ -184,8 +184,21 @@ for _, valkyrie in ipairs(valkyrie_types) do
             attach_wings(self.object, color)
         end,
 
-        on_die = function(self, pos)
-            remove_wings(self.object)
+        -- Reliable cleanup: Find and remove attached wing entity on death
+        on_die = function(self)
+            if not self.object then return end
+
+            local pos = self.object:get_pos()
+            if not pos then return end
+
+            -- Look for nearby wing_visual entities and remove them
+            local objects = minetest.get_objects_inside_radius(pos, 4)  -- generous radius
+            for _, obj in ipairs(objects) do
+                local ent = obj:get_luaentity()
+                if ent and ent.name == "lualore:wing_visual" then
+                    obj:remove()
+                end
+            end
         end,
 
         do_custom = function(self, dtime)
@@ -284,7 +297,6 @@ for _, valkyrie in ipairs(valkyrie_types) do
                                     self.strike_timer = 0
                                 else
                                     minetest.log("warning", "[lualore] Strike " .. self.current_strike .. " failed - on cooldown or player has effect")
-                                    -- Fallback: try the other strike immediately
                                     self.current_strike = self.current_strike % #self.assigned_strikes + 1
                                     strike_func = self.assigned_strikes[self.current_strike]
                                     success = lualore.valkyrie_strikes.use_strike(self, strike_func, target)
@@ -298,15 +310,12 @@ for _, valkyrie in ipairs(valkyrie_types) do
                                     self.strike_timer = 0
                                 end
                             else
-                                minetest.log("error", "[lualore] Strike function is nil or not a function! Type: " .. type(strike_func))
-                                minetest.log("error", "[lualore] Current strike index: " .. self.current_strike .. " / " .. #self.assigned_strikes)
+                                minetest.log("error", "[lualore] Strike function is nil or not a function!")
                             end
                         elseif distance < 4 then
-                            -- Close range: push away from player
                             local dir = vector.direction(player_pos, self_pos)
                             self.object:set_velocity(vector.multiply(dir, 2))
                         elseif distance > 8 and distance <= 20 then
-                            -- Medium range: dash towards player
                             local dir = vector.direction(self_pos, player_pos)
                             dir.y = dir.y + 0.2
                             local dash_vel = vector.multiply(dir, 5)
@@ -315,7 +324,7 @@ for _, valkyrie in ipairs(valkyrie_types) do
                     end
                 end
 
-                -- Wing tip particles (visual flair)
+                -- Wing tip particles
                 if pos then
                     local wing_left = vector.add(pos, {x=-0.5, y=0.8, z=0})
                     local wing_right = vector.add(pos, {x=0.5, y=0.8, z=0})
@@ -365,33 +374,23 @@ for _, valkyrie in ipairs(valkyrie_types) do
     minetest.log("action", "[lualore] Registered " .. valkyrie_display)
 end
 
--- Chat commands remain unchanged
+-- Chat commands (unchanged)
 minetest.register_chatcommand("spawn_valkyrie", {
     params = "<type>",
     description = S("Spawn a Valkyrie (blue, violet, gold, or green)"),
     privs = {give = true},
     func = function(name, param)
         local player = minetest.get_player_by_name(name)
-        if not player then
-            return false, S("Player not found")
-        end
+        if not player then return false, S("Player not found") end
 
         local valkyrie_type = param:lower()
         local valid_types = {"blue", "violet", "gold", "green"}
-        local is_valid = false
-        for _, vtype in ipairs(valid_types) do
-            if valkyrie_type == vtype then
-                is_valid = true
-                break
-            end
-        end
-
-        if not is_valid then
+        if not table.contains(valid_types, valkyrie_type) then
             return false, S("Invalid type. Use: blue, violet, gold, or green")
         end
 
         local pos = player:get_pos()
-        local spawn_pos = vector.add(pos, {x=math.random(-3, 3), y=1, z=math.random(-3, 3)})
+        local spawn_pos = vector.add(pos, {x=math.random(-3,3), y=1, z=math.random(-3,3)})
 
         local mob_name = "lualore:" .. valkyrie_type .. "_valkyrie"
         local obj = minetest.add_entity(spawn_pos, mob_name)
@@ -400,12 +399,10 @@ minetest.register_chatcommand("spawn_valkyrie", {
             local ent = obj:get_luaentity()
             if ent and ent.assigned_strikes then
                 minetest.chat_send_player(name, S("Valkyrie assigned strikes: @1", #ent.assigned_strikes))
-                minetest.log("action", "[lualore] Valkyrie spawned with " .. #ent.assigned_strikes .. " strikes")
             end
             return true, S("Spawned @1 Valkyrie", valkyrie_type)
-        else
-            return false, S("Failed to spawn Valkyrie")
         end
+        return false, S("Failed to spawn Valkyrie")
     end
 })
 
@@ -415,9 +412,7 @@ minetest.register_chatcommand("valkyrie_info", {
     privs = {give = true},
     func = function(name, param)
         local player = minetest.get_player_by_name(name)
-        if not player then
-            return false, S("Player not found")
-        end
+        if not player then return false, S("Player not found") end
 
         local pos = player:get_pos()
         local objects = minetest.get_objects_inside_radius(pos, 30)
@@ -443,7 +438,6 @@ minetest.register_chatcommand("valkyrie_info", {
         if not found then
             return false, S("No Valkyries nearby")
         end
-
         return true
     end
 })
