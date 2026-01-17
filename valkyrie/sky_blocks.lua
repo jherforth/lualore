@@ -39,11 +39,14 @@ local wing_types = {
 	}
 }
 
-local function attach_wings(parent_obj, wing_type)
+local function attach_wings(parent_obj, wing_type, scale)
     if not parent_obj then return end
 
     local wing_data = wing_types[wing_type]
     if not wing_data then return end
+
+    -- Default scale is 1.0 (full size), can be adjusted (e.g., 0.5 for 50% size)
+    scale = scale or 1.0
 
     local pos = parent_obj:get_pos()
     local wing_entity = minetest.add_entity(pos, "lualore:wing_visual")
@@ -63,7 +66,8 @@ local function attach_wings(parent_obj, wing_type)
 
         wing_entity:get_luaentity().wing_type = wing_type
         wing_entity:set_properties({
-            textures = {wing_data.texture}
+            textures = {wing_data.texture},
+            visual_size = {x=2 * scale, y=2 * scale}  -- Scale wings based on parameter
         })
 
         return wing_entity
@@ -97,7 +101,8 @@ local function activate_wings(player, wing_type, itemstack, index)
 		return false
 	end
 
-	local wing_entity = attach_wings(player, wing_type)
+	-- Player wings are 50% size (0.5 scale)
+	local wing_entity = attach_wings(player, wing_type, 0.5)
 
 	active_wings[player_name] = {
 		wing_type = wing_type,
