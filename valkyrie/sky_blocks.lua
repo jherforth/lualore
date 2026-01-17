@@ -103,8 +103,8 @@ local function activate_wings(player, wing_type)
 	}
 
 	-- Set initial standing pose with wings (facing forward)
-	player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=180, z=0})
-	player:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
+	player:set_bone_override("Body", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=180, z=0}})
+	player:set_bone_override("Head", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=0, z=0}})
 
 	minetest.chat_send_player(player_name, S("Wings equipped! Use jump to fly up, sneak to descend. Duration: @1s", wing_data.flight_time))
 end
@@ -115,17 +115,19 @@ local function deactivate_wings(player, player_name)
 	if player and player:is_player() then
 		remove_wings(player)
 
-		player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
-		player:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
-		player:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=0})
-		player:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=0})
+		-- Reset all bone overrides to default
+		player:set_bone_override("Body", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=0, z=0}})
+		player:set_bone_override("Head", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=0, z=0}})
+		player:set_bone_override("Arm_Left", {position = {x=-3, y=6.3, z=1}, rotation = {x=0, y=0, z=0}})
+		player:set_bone_override("Arm_Right", {position = {x=3, y=6.3, z=1}, rotation = {x=0, y=0, z=0}})
 
+		-- Ensure bones are fully reset with a slight delay
 		minetest.after(0.1, function()
 			if player and player:is_player() then
-				player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
-				player:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
-				player:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=0})
-				player:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=0})
+				player:set_bone_override("Body", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=0, z=0}})
+				player:set_bone_override("Head", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=0, z=0}})
+				player:set_bone_override("Arm_Left", {position = {x=-3, y=6.3, z=1}, rotation = {x=0, y=0, z=0}})
+				player:set_bone_override("Arm_Right", {position = {x=3, y=6.3, z=1}, rotation = {x=0, y=0, z=0}})
 			end
 		end)
 	end
@@ -208,8 +210,8 @@ minetest.register_globalstep(function(dtime)
 						wing_data.was_flying = true
 					end
 
-					player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=-90, y=180, z=0})
-					player:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=90, y=180, z=0})
+					player:set_bone_override("Body", {position = {x=0, y=6.3, z=0}, rotation = {x=-90, y=180, z=0}})
+					player:set_bone_override("Head", {position = {x=0, y=6.3, z=0}, rotation = {x=90, y=180, z=0}})
 
 					if ctrl.jump then
 						player:add_velocity({x=0, y=wing_info.lift_power, z=0})
@@ -249,10 +251,10 @@ minetest.register_globalstep(function(dtime)
 					})
 				else
 					if wing_data.was_flying then
-						player:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=0, y=180, z=0})
-						player:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=0, y=0, z=0})
-						player:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=0})
-						player:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=0})
+						player:set_bone_override("Body", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=180, z=0}})
+						player:set_bone_override("Head", {position = {x=0, y=6.3, z=0}, rotation = {x=0, y=0, z=0}})
+						player:set_bone_override("Arm_Left", {position = {x=-3, y=6.3, z=1}, rotation = {x=0, y=0, z=0}})
+						player:set_bone_override("Arm_Right", {position = {x=3, y=6.3, z=1}, rotation = {x=0, y=0, z=0}})
 						wing_data.was_flying = false
 					end
 				end
