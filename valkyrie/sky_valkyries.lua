@@ -1,4 +1,4 @@
-local S = minetest.get_translator("lualore")
+	local S = minetest.get_translator("lualore")
 
 lualore.sky_valkyries = {}
 
@@ -153,36 +153,42 @@ for _, valkyrie in ipairs(valkyrie_types) do
 			die_rotate = true,
 		},
 
-		on_activate = function(self, staticdata, dtime_s)
-			self.valkyrie_base_texture = valkyrie_texture
-			self.valkyrie_wing_texture = valkyrie_wing_texture
+	on_activate = function(self, staticdata, dtime_s)
+    	    -- Extract color from name (e.g., "blue_valkyrie" -> "blue")
+	        local color = self.name:match("lualore:(%w+)_valkyrie")
+	        if not color then
+	            minetest.log("error", "[lualore] Could not extract color from " .. self.name)
+	            return
+	        end
 
-			if not self.assigned_strikes then
-				self.assigned_strikes = lualore.valkyrie_strikes.assign_random_strikes()
-				minetest.log("action", "[lualore] Valkyrie assigned " .. #self.assigned_strikes .. " strikes")
-			end
+	        self.valkyrie_base_texture = valkyrie_texture
+	        self.valkyrie_wing_texture = valkyrie_wing_texture
 
-			self.current_strike = 1
-			self.strike_timer = 0
-			self.strike_interval = 2.5
-			self.hover_timer = 0
-			self.hover_offset = math.random() * 2 * math.pi
-			self.wing_flap_timer = 0
+	        if not self.assigned_strikes then
+	            self.assigned_strikes = lualore.valkyrie_strikes.assign_random_strikes()
+ 	           minetest.log("action", "[lualore] Valkyrie assigned " .. #self.assigned_strikes .. " strikes")
+ 	       end
 
-			local combined_texture = valkyrie_texture .. "^" .. valkyrie_wing_texture
-			self.object:set_properties({
-				textures = {combined_texture}
-			})
+	        self.current_strike = 1
+ 	       self.strike_timer = 0
+ 	       self.strike_interval = 2.5
+ 	       self.hover_timer = 0
+ 	       self.hover_offset = math.random() * 2 * math.pi
+	        self.wing_flap_timer = 0
 
-			minetest.after(0.5, function()
-				if self and self.object then
-					self.object:set_properties({
-						textures = {combined_texture}
-					})
-					minetest.log("action", "[lualore] Set Valkyrie texture: " .. combined_texture)
-				end
-			end)
-		end,
+	        -- Set base texture only (no combining)
+	        self.object:set_properties({
+	            textures = {valkyrie_texture}
+	        })
+
+	        -- Attach wings as sprite
+	        attach_wings(self.object, color)  -- Use the function from sky_blocks.lua
+	    end,
+
+	    on_die = function(self, pos)
+	        -- Cleanup attached wings
+	        remove_wings(self.object)  -- Reuse the player function; it works for any obj
+	    end,
 
 		do_custom = function(self, dtime)
 			local success, err = pcall(function()
@@ -251,66 +257,66 @@ for _, valkyrie in ipairs(valkyrie_types) do
 				end
 
 				if target and target:is_player() then
-					local player_pos = target:get_pos()
-					local self_pos = pos
+				    local player_pos = target:get_pos()
+				    local self_pos = pos
 
-					if player_pos and self_pos then
-						local distance = vector.distance(player_pos, self_pos)
+				    if player_pos and self_pos then
+				        local distance = vector.distance(player_pos, self_pos)
 
-						if not self.strike_timer then
-							self.strike_timer = 0
-						end
+				        if not self.strike_timer then
+				            self.strike_timer = 0
+				        end
 
-						if not self.strike_interval then
-							self.strike_interval = 2.5
-						end
+ 				       if not self.strike_interval then
+				            self.strike_interval = 2.5
+				        end
 
-						self.strike_timer = self.strike_timer + dtime
+				        self.strike_timer = self.strike_timer + dtime
 
-						if distance >= 4 and distance <= 25 and self.strike_timer >= self.strike_interval then
-							if not self.assigned_strikes or #self.assigned_strikes == 0 then
-								minetest.log("error", "[lualore] Valkyrie has no assigned strikes!")
-								self.assigned_strikes = lualore.valkyrie_strikes.assign_random_strikes()
-								self.current_strike = 1
-							end
+				        if distance >= 4 and distance <= 20 and self.strike_timer >= self.strike_interval then  -- Adjusted range to MD spec
+				            if not self.assigned_strikes or #self.assigned_strikes == 0 then
+ 				               minetest.log("error", "[lualore] Valkyrie has no assigned strikes!")
+				                self.assigned_strikes = lualore.valkyrie_strikes.assign_random_strikes()
+ 				               self.current_strike = 1
+ 				           end
 
-							local strike_func = self.assigned_strikes[self.current_strike]
+				            -- Try the current strike
+				            local strike_func = self.assigned_strikes[self.current_strike]
+				            if strike_func and type(strike_func) == "function" then
+ 				               minetest.log("action", "[lualore] Attempting strike " .. self.current_strike .. " at distance " .. math.floor(distance))
 
-							if strike_func and type(strike_func) == "function" then
-								minetest.log("action", "[lualore] Attempting strike " .. self.current_strike .. " at distance " .. math.floor(distance))
+ 				               local success = lualore.valkyrie_strikes.use_strike(self, strike_func, target)  -- Wrap in use_strike for cooldown
 
-								local success = strike_func(self, target)
-								if success then
-									self.current_strike = self.current_strike + 1
-									if self.current_strike > #self.assigned_strikes then
-										self.current_strike = 1
-									end
-
-									minetest.chat_send_player(target:get_player_name(),
-										S("Valkyrie unleashes a powerful strike!"))
-									minetest.log("action", "[lualore] Valkyrie successfully used strike on " .. target:get_player_name())
-
-									self.strike_timer = 0
-								else
-									minetest.log("warning", "[lualore] Strike failed - cooldown or player already has effect")
-									self.strike_timer = 0
-								end
-							else
-								minetest.log("error", "[lualore] Strike function is nil or not a function! Type: " .. type(strike_func))
-								minetest.log("error", "[lualore] Current strike index: " .. self.current_strike .. " / " .. #self.assigned_strikes)
-							end
-						elseif distance < 4 then
-							local dir = vector.direction(player_pos, self_pos)
-							self.object:set_velocity(vector.multiply(dir, 2))
-						end
-
-						if distance > 8 and distance <= 25 then
-							local dir = vector.direction(self_pos, player_pos)
-							dir.y = dir.y + 0.2
-							local dash_vel = vector.multiply(dir, 5)
-							self.object:set_velocity(dash_vel)
-						end
-					end
+ 				               if success then
+ 				                   self.current_strike = self.current_strike % #self.assigned_strikes + 1  -- Cycle to next (works for 2 strikes)
+				                    minetest.chat_send_player(target:get_player_name(), S("Valkyrie unleashes a powerful strike!"))
+				                    minetest.log("action", "[lualore] Valkyrie successfully used strike on " .. target:get_player_name())
+				                    self.strike_timer = 0  -- Reset global attempt timer
+				                else
+				                    minetest.log("warning", "[lualore] Strike " .. self.current_strike .. " failed - on cooldown or player has effect")
+				                    -- Switch to next and try immediately (to alternate without full wait)
+				                    self.current_strike = self.current_strike % #self.assigned_strikes + 1
+				                    strike_func = self.assigned_strikes[self.current_strike]  -- Get next
+				                    success = lualore.valkyrie_strikes.use_strike(self, strike_func, target)
+				                    if success then
+				                        self.current_strike = self.current_strike % #self.assigned_strikes + 1  -- Cycle again for next time
+				                        minetest.chat_send_player(target:get_player_name(), S("Valkyrie unleashes a powerful strike!"))
+				                        minetest.log("action", "[lualore] Valkyrie fallback to strike " .. self.current_strike .. " on " .. target:get_player_name())
+				                    else
+				                        minetest.log("warning", "[lualore] Fallback strike also failed")
+				                    end
+				                    self.strike_timer = 0  -- Reset anyway to keep pressure
+				                end
+				            else
+ 				               minetest.log("error", "[lualore] Strike function is nil or not a function! Type: " .. type(strike_func))
+    				            minetest.log("error", "[lualore] Current strike index: " .. self.current_strike .. " / " .. #self.assigned_strikes)
+    				        end
+   				     elseif distance < 4 then
+   				         -- ... (existing melee/close logic)
+   				     elseif distance > 8 and distance <= 20 then  -- Adjusted range
+ 				           -- ... (existing dash logic)
+ 				       end
+ 				   end
 				end
 
 				if pos then
