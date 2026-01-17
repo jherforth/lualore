@@ -240,8 +240,8 @@ for _, valkyrie in ipairs(valkyrie_types) do
 
                 if self.object.set_bone_position then
                     if is_moving then
-                        -- Rotate 180 degrees on Y axis so valkyrie moves head-first instead of feet-first
-                        self.object:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=-90, y=180, z=180})
+                        -- Rotate 180 degrees on Y and Z axes so valkyrie moves head-first belly-down
+                        self.object:set_bone_position("Body", {x=0, y=6.3, z=0}, {x=-90, y=180, z=0})
                         self.object:set_bone_position("Head", {x=0, y=6.3, z=0}, {x=90, y=0, z=0})
                         self.object:set_bone_position("Arm_Left", {x=-3, y=6.3, z=1}, {x=0, y=0, z=180 + wing_angle})
                         self.object:set_bone_position("Arm_Right", {x=3, y=6.3, z=1}, {x=0, y=0, z=-180 - wing_angle})
