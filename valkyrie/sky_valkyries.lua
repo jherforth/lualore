@@ -384,8 +384,8 @@ minetest.register_chatcommand("spawn_valkyrie", {
         if not player then return false, S("Player not found") end
 
         local valkyrie_type = param:lower()
-        local valid_types = {"blue", "violet", "gold", "green"}
-        if not table.contains(valid_types, valkyrie_type) then
+        local valid_types = {blue = true, violet = true, gold = true, green = true}
+        if not valid_types[valkyrie_type] then
             return false, S("Invalid type. Use: blue, violet, gold, or green")
         end
 
