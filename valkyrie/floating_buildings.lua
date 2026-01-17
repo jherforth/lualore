@@ -13,8 +13,8 @@ local sky_fortress_noise = {
 
 local sky_house_noise = {
 	offset = 0,
-	scale = 0.005,
-	spread = {x = 180, y = 180, z = 180},
+	scale = 0.0025,
+	spread = {x = 360, y = 360, z = 360},
 	seed = 73829,
 	octaves = 3,
 	persist = 0.5
@@ -47,7 +47,7 @@ local function register_sky_house(params)
 		name = "lualore:" .. params.name,
 		deco_type = "schematic",
 		place_on = {"everness:dirt_with_crystal_grass"},
-		sidelen = 60,
+		sidelen = 120,
 		noise_params = sky_house_noise,
 		biomes = {"everness_crystal_forest"},
 		y_min = 500,
