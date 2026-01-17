@@ -110,13 +110,36 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
 		local fortress_pos = crystal_grass_positions[1]
 		local fortress_hash = minetest.hash_node_position(fortress_pos)
 
-		minetest.after(2, function()
-			if lualore.sky_valkyries and lualore.sky_valkyries.spawn_at_fortress then
-				lualore.sky_valkyries.spawn_at_fortress(fortress_pos, fortress_hash)
-			end
+		local egg_plant_positions = {}
+		for x = area_min.x, area_max.x do
+			for y = area_min.y, area_max.y do
+				for z = area_min.z, area_max.z do
+					local pos = {x=x, y=y, z=z}
+					local node = minetest.get_node_or_nil(pos)
 
+					if node and node.name == "everness:egg_plant" then
+						table.insert(egg_plant_positions, pos)
+					end
+				end
+			end
+		end
+
+		minetest.after(2, function()
 			if lualore.sky_villages and lualore.sky_villages.spawn_sky_folk then
 				lualore.sky_villages.spawn_sky_folk(fortress_pos, fortress_hash)
+			end
+
+			if lualore.sky_valkyries and #egg_plant_positions > 0 then
+				local valkyrie_types_list = {"blue", "violet", "gold", "green"}
+				for _, egg_pos in ipairs(egg_plant_positions) do
+					if math.random(1, 100) <= 50 then
+						local chosen_type = valkyrie_types_list[math.random(1, #valkyrie_types_list)]
+						local spawn_pos = vector.add(egg_pos, {x=0, y=1, z=0})
+						local mob_name = "lualore:" .. chosen_type .. "_valkyrie"
+						minetest.add_entity(spawn_pos, mob_name)
+						minetest.log("action", "[lualore] Spawned " .. chosen_type .. " Valkyrie at egg_plant")
+					end
+				end
 			end
 		end)
 	end
