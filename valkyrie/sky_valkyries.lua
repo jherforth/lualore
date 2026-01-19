@@ -6,27 +6,6 @@ local attach_wings = lualore.sky_wings.attach_wings
 
 lualore.sky_valkyries = {}
 
-local spawned_valkyries = {}
-local storage = minetest.get_mod_storage()
-
-local function load_spawned_valkyries()
-    local data = storage:get_string("spawned_valkyries")
-    if data and data ~= "" then
-        spawned_valkyries = minetest.deserialize(data) or {}
-    end
-end
-
-local save_timer = 0
-minetest.register_globalstep(function(dtime)
-    save_timer = save_timer + dtime
-    if save_timer >= 60 then
-        save_timer = 0
-        storage:set_string("spawned_valkyries", minetest.serialize(spawned_valkyries))
-    end
-end)
-
-load_spawned_valkyries()
-
 local valkyrie_types = {
     {
         name = "blue_valkyrie",
@@ -464,19 +443,22 @@ minetest.register_chatcommand("spawn_valkyrie", {
         end
 
         local pos = player:get_pos()
-        local spawn_pos = vector.add(pos, {x=math.random(-3,3), y=1, z=math.random(-3,3)})
+        local spawn_pos = vector.add(pos, {x=math.random(-10,10), y=math.random(10,20), z=math.random(-10,10)})
 
         local mob_name = "lualore:" .. valkyrie_type .. "_valkyrie"
-        local obj = minetest.add_entity(spawn_pos, mob_name)
 
-        if obj then
-            local ent = obj:get_luaentity()
-            if ent and ent.assigned_strikes then
-                minetest.chat_send_player(name, S("Valkyrie assigned strikes: @1", #ent.assigned_strikes))
+        minetest.after(0.1, function()
+            local obj = minetest.add_entity(spawn_pos, mob_name)
+            if obj then
+                minetest.log("action", "[lualore] Spawned " .. valkyrie_type .. " Valkyrie via command at " ..
+                    minetest.pos_to_string(spawn_pos))
+                minetest.chat_send_player(name, S("Spawned @1 Valkyrie in the sky nearby!", valkyrie_type))
+            else
+                minetest.chat_send_player(name, S("Failed to spawn Valkyrie"))
             end
-            return true, S("Spawned @1 Valkyrie", valkyrie_type)
-        end
-        return false, S("Failed to spawn Valkyrie")
+        end)
+
+        return true, S("Spawning @1 Valkyrie...", valkyrie_type)
     end
 })
 
@@ -515,28 +497,5 @@ minetest.register_chatcommand("valkyrie_info", {
         return true
     end
 })
-
-function lualore.sky_valkyries.spawn_at_fortress(fortress_pos, fortress_hash)
-    if spawned_valkyries[fortress_hash] then
-        return false
-    end
-
-    local valkyrie_types_list = {"blue", "violet", "gold", "green"}
-    local chosen_type = valkyrie_types_list[math.random(1, #valkyrie_types_list)]
-
-    local spawn_pos = vector.add(fortress_pos, {x=0, y=2, z=0})
-    local mob_name = "lualore:" .. chosen_type .. "_valkyrie"
-
-    local obj = minetest.add_entity(spawn_pos, mob_name)
-
-    if obj then
-        spawned_valkyries[fortress_hash] = chosen_type
-        storage:set_string("spawned_valkyries", minetest.serialize(spawned_valkyries))
-        minetest.log("action", "[lualore] Spawned " .. chosen_type .. " Valkyrie at fortress " .. fortress_hash)
-        return true
-    end
-
-    return false
-end
 
 minetest.log("action", "[lualore] Sky Valkyrie system loaded")

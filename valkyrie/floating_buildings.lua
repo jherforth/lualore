@@ -70,10 +70,9 @@ register_sky_house({name = "skyhouse1", file = "skyhouse1.mts"})
 register_sky_house({name = "skyhouse2", file = "skyhouse2.mts"})
 register_sky_house({name = "skyhouse3", file = "skyhouse3.mts"})
 
--- Command to spawn valkyries at nearest fortress
 minetest.register_chatcommand("spawn_fortress_valkyries", {
 	params = "",
-	description = S("Spawn valkyries at the nearest sky fortress"),
+	description = S("Spawn valkyries near your position"),
 	privs = {give = true},
 	func = function(name, param)
 		local player = minetest.get_player_by_name(name)
@@ -84,26 +83,27 @@ minetest.register_chatcommand("spawn_fortress_valkyries", {
 		local pos = player:get_pos()
 
 		local valkyrie_types_list = {"blue", "violet", "gold", "green"}
-		local num_valkyries = math.random(2, 5)
-		local spawned = 0
+		local num_valkyries = math.random(3, 6)
 
 		for i = 1, num_valkyries do
 			local random_offset = {
-				x = math.random(-15, 15),
-				y = math.random(5, 15),
-				z = math.random(-15, 15)
+				x = math.random(-20, 20),
+				y = math.random(8, 25),
+				z = math.random(-20, 20)
 			}
 			local spawn_pos = vector.add(pos, random_offset)
 			local chosen_type = valkyrie_types_list[math.random(1, #valkyrie_types_list)]
 			local mob_name = "lualore:" .. chosen_type .. "_valkyrie"
 
-			local obj = minetest.add_entity(spawn_pos, mob_name)
-			if obj then
-				spawned = spawned + 1
-			end
+			minetest.after(0.3 * i, function()
+				local obj = minetest.add_entity(spawn_pos, mob_name)
+				if obj then
+					minetest.log("action", "[lualore] Spawned " .. chosen_type .. " Valkyrie via command")
+				end
+			end)
 		end
 
-		return true, S("Spawned @1 Valkyries near your position", spawned)
+		return true, S("Spawning @1 Valkyries around you...", num_valkyries)
 	end
 })
 
@@ -162,31 +162,33 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
 				end
 			end
 
-			if lualore.sky_valkyries then
-				local valkyrie_types_list = {"blue", "violet", "gold", "green"}
-				local num_valkyries = math.random(2, 5)
+			local valkyrie_types_list = {"blue", "violet", "gold", "green"}
+			local num_valkyries = math.random(3, 6)
 
-				minetest.log("action", "[lualore] Spawning " .. num_valkyries .. " Valkyries at fortress")
+			minetest.log("action", "[lualore] Spawning " .. num_valkyries .. " Valkyries at fortress " ..
+				minetest.pos_to_string(fortress_pos))
 
-				for i = 1, num_valkyries do
-					local random_offset = {
-						x = math.random(-15, 15),
-						y = math.random(5, 15),
-						z = math.random(-15, 15)
-					}
-					local spawn_pos = vector.add(fortress_pos, random_offset)
-					local chosen_type = valkyrie_types_list[math.random(1, #valkyrie_types_list)]
-					local mob_name = "lualore:" .. chosen_type .. "_valkyrie"
+			for i = 1, num_valkyries do
+				local random_offset = {
+					x = math.random(-20, 20),
+					y = math.random(8, 25),
+					z = math.random(-20, 20)
+				}
+				local spawn_pos = vector.add(fortress_pos, random_offset)
+				local chosen_type = valkyrie_types_list[math.random(1, #valkyrie_types_list)]
+				local mob_name = "lualore:" .. chosen_type .. "_valkyrie"
 
+				minetest.after(0.5 * i, function()
 					local obj = minetest.add_entity(spawn_pos, mob_name)
 					if obj then
-						minetest.log("action", "[lualore] Spawned " .. chosen_type .. " Valkyrie at " ..
+						minetest.log("action", "[lualore] Successfully spawned " .. chosen_type .. " Valkyrie at " ..
 							minetest.pos_to_string(spawn_pos))
+						minetest.chat_send_all("[Lualore] A " .. chosen_type .. " Valkyrie has appeared in the sky!")
 					else
 						minetest.log("error", "[lualore] Failed to spawn " .. chosen_type .. " Valkyrie at " ..
 							minetest.pos_to_string(spawn_pos))
 					end
-				end
+				end)
 			end
 		end)
 	end
