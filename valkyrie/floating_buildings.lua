@@ -70,10 +70,10 @@ register_sky_house({name = "skyhouse1", file = "skyhouse1.mts"})
 register_sky_house({name = "skyhouse2", file = "skyhouse2.mts"})
 register_sky_house({name = "skyhouse3", file = "skyhouse3.mts"})
 
--- Command to spawn valkyries at nearest fortress
-minetest.register_chatcommand("spawn_fortress_valkyries", {
+-- Command to place valkyrie chests at nearest fortress
+minetest.register_chatcommand("place_fortress_chests", {
 	params = "",
-	description = S("Spawn valkyries at the nearest sky fortress"),
+	description = S("Place valkyrie chests at the nearest sky fortress"),
 	privs = {give = true},
 	func = function(name, param)
 		local player = minetest.get_player_by_name(name)
@@ -95,29 +95,30 @@ minetest.register_chatcommand("spawn_fortress_valkyries", {
 			return false, S("No fortress torches found nearby. Stand closer to a sky fortress.")
 		end
 
-		local valkyrie_types_list = {"blue", "violet", "gold", "green"}
-		local spawned = 0
+		local chests_placed = 0
 
 		for i, torch_pos in ipairs(torch_positions) do
-			if spawned >= 5 then
+			if chests_placed >= 4 then
 				break
 			end
 
-			local spawn_pos = {x = torch_pos.x, y = torch_pos.y + 1, z = torch_pos.z}
-			local node_at_spawn = minetest.get_node(spawn_pos)
+			local chest_pos = {x = torch_pos.x, y = torch_pos.y, z = torch_pos.z}
+			local node_at_pos = minetest.get_node(chest_pos)
 
-			if node_at_spawn.name == "air" then
-				local chosen_type = valkyrie_types_list[math.random(1, #valkyrie_types_list)]
-				local mob_name = "lualore:" .. chosen_type .. "_valkyrie"
+			if node_at_pos.name == "everness:mineral_torch" then
+				local below_node = minetest.get_node({x = chest_pos.x, y = chest_pos.y - 1, z = chest_pos.z})
 
-				local obj = minetest.add_entity(spawn_pos, mob_name)
-				if obj then
-					spawned = spawned + 1
+				if below_node.name ~= "air" then
+					minetest.set_node(chest_pos, {
+						name = "lualore:valkyrie_chest",
+						param2 = math.random(0, 3)
+					})
+					chests_placed = chests_placed + 1
 				end
 			end
 		end
 
-		return true, S("Spawned @1 Valkyries at fortress torch positions", spawned)
+		return true, S("Placed @1 Valkyrie chests at fortress", chests_placed)
 	end
 })
 
@@ -187,33 +188,34 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
 				)
 
 				if #torch_positions > 0 then
-					local valkyrie_types_list = {"blue", "violet", "gold", "green"}
-					local spawned_count = 0
+					local chests_placed = 0
 
-					minetest.log("action", "[lualore] Found " .. #torch_positions .. " torch positions for Valkyrie spawning")
+					minetest.log("action", "[lualore] Found " .. #torch_positions .. " torch positions for chest placement")
 
 					for i, torch_pos in ipairs(torch_positions) do
-						if spawned_count >= 5 then
+						if chests_placed >= 4 then
 							break
 						end
 
-						local spawn_pos = {x = torch_pos.x, y = torch_pos.y + 1, z = torch_pos.z}
-						local node_at_spawn = minetest.get_node(spawn_pos)
+						local chest_pos = {x = torch_pos.x, y = torch_pos.y, z = torch_pos.z}
+						local node_at_pos = minetest.get_node(chest_pos)
 
-						if node_at_spawn.name == "air" then
-							local chosen_type = valkyrie_types_list[math.random(1, #valkyrie_types_list)]
-							local mob_name = "lualore:" .. chosen_type .. "_valkyrie"
+						if node_at_pos.name == "everness:mineral_torch" then
+							local below_node = minetest.get_node({x = chest_pos.x, y = chest_pos.y - 1, z = chest_pos.z})
 
-							local obj = minetest.add_entity(spawn_pos, mob_name)
-							if obj then
-								spawned_count = spawned_count + 1
-								minetest.log("action", "[lualore] Spawned " .. chosen_type .. " Valkyrie at torch position " ..
-									minetest.pos_to_string(spawn_pos))
+							if below_node.name ~= "air" then
+								minetest.set_node(chest_pos, {
+									name = "lualore:valkyrie_chest",
+									param2 = math.random(0, 3)
+								})
+								chests_placed = chests_placed + 1
+								minetest.log("action", "[lualore] Placed Valkyrie chest at " ..
+									minetest.pos_to_string(chest_pos))
 							end
 						end
 					end
 
-					minetest.log("action", "[lualore] Successfully spawned " .. spawned_count .. " Valkyries at fortress")
+					minetest.log("action", "[lualore] Placed " .. chests_placed .. " Valkyrie chests at fortress")
 				else
 					minetest.log("warning", "[lualore] No torch positions found at fortress " ..
 						minetest.pos_to_string(fortress_pos))
