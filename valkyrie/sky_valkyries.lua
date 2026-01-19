@@ -199,6 +199,13 @@ for _, valkyrie in ipairs(valkyrie_types) do
                     obj:remove()
                 end
             end
+
+            -- Check if all valkyries are defeated and liberate sky folk
+            if lualore.sky_liberation then
+                minetest.after(0.5, function()
+                    lualore.sky_liberation.check_and_liberate(pos)
+                end)
+            end
         end,
 
         do_custom = function(self, dtime)

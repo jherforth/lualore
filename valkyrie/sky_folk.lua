@@ -90,6 +90,21 @@ mobs:register_mob("lualore:sky_folk", {
 	on_activate = function(self, staticdata, dtime_s)
 		self.sound_timer = math.random(10, 20)
 		self.last_hp = self.health or 20
+
+		if staticdata and staticdata ~= "" then
+			local data = minetest.deserialize(staticdata)
+			if data and lualore.sky_liberation then
+				lualore.sky_liberation.deserialize_sky_folk_data(self, data)
+			end
+		end
+	end,
+
+	get_staticdata = function(self)
+		if lualore.sky_liberation then
+			local data = lualore.sky_liberation.serialize_sky_folk_data(self)
+			return minetest.serialize(data)
+		end
+		return ""
 	end,
 
 	on_punch = function(self, hitter, tflp, tool_capabilities, dir)
