@@ -88,18 +88,22 @@ local function free_sky_folk(sky_folk_entity)
 	sky_folk_entity.type = "npc"
 	sky_folk_entity.passive = true
 	sky_folk_entity.attack_players = false
+	sky_folk_entity.attack = nil
 	sky_folk_entity.liberated = true
 
-	sky_folk_entity.object:set_properties({
-		textures = {{"sky_folk_freed.png"}}
-	})
+	local props = sky_folk_entity.object:get_properties()
+	props.textures = {"sky_folk_freed.png"}
+	sky_folk_entity.object:set_properties(props)
+
+	sky_folk_entity.base_texture = {"sky_folk_freed.png"}
+	sky_folk_entity.textures = {"sky_folk_freed.png"}
 
 	local pos = sky_folk_entity.object:get_pos()
 	if pos then
 		spawn_liberation_particles(pos)
 	end
 
-	minetest.log("action", "[lualore] Sky Folk liberated")
+	minetest.log("action", "[lualore] Sky Folk liberated at " .. minetest.pos_to_string(pos))
 	return true
 end
 
@@ -166,9 +170,16 @@ function lualore.sky_liberation.deserialize_sky_folk_data(self, data)
 		self.type = "npc"
 		self.passive = true
 		self.attack_players = false
-		self.object:set_properties({
-			textures = {{"sky_folk_freed.png"}}
-		})
+		self.attack = nil
+
+		local props = self.object:get_properties()
+		props.textures = {"sky_folk_freed.png"}
+		self.object:set_properties(props)
+
+		self.base_texture = {"sky_folk_freed.png"}
+		self.textures = {"sky_folk_freed.png"}
+
+		minetest.log("action", "[lualore] Sky Folk restored as liberated")
 	end
 end
 

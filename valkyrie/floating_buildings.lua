@@ -70,6 +70,43 @@ register_sky_house({name = "skyhouse1", file = "skyhouse1.mts"})
 register_sky_house({name = "skyhouse2", file = "skyhouse2.mts"})
 register_sky_house({name = "skyhouse3", file = "skyhouse3.mts"})
 
+-- Command to spawn valkyries at nearest fortress
+minetest.register_chatcommand("spawn_fortress_valkyries", {
+	params = "",
+	description = S("Spawn valkyries at the nearest sky fortress"),
+	privs = {give = true},
+	func = function(name, param)
+		local player = minetest.get_player_by_name(name)
+		if not player then
+			return false, S("Player not found")
+		end
+
+		local pos = player:get_pos()
+
+		local valkyrie_types_list = {"blue", "violet", "gold", "green"}
+		local num_valkyries = math.random(2, 5)
+		local spawned = 0
+
+		for i = 1, num_valkyries do
+			local random_offset = {
+				x = math.random(-15, 15),
+				y = math.random(5, 15),
+				z = math.random(-15, 15)
+			}
+			local spawn_pos = vector.add(pos, random_offset)
+			local chosen_type = valkyrie_types_list[math.random(1, #valkyrie_types_list)]
+			local mob_name = "lualore:" .. chosen_type .. "_valkyrie"
+
+			local obj = minetest.add_entity(spawn_pos, mob_name)
+			if obj then
+				spawned = spawned + 1
+			end
+		end
+
+		return true, S("Spawned @1 Valkyries near your position", spawned)
+	end
+})
+
 minetest.register_on_generated(function(minp, maxp, blockseed)
 	if minp.y < 500 then
 		return
@@ -98,7 +135,9 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
 				local pos = {x=x, y=y, z=z}
 				local node = minetest.get_node_or_nil(pos)
 
-				if node and node.name == "everness:dirt_with_crystal_grass" then
+				if node and (node.name == "everness:dirt_with_crystal_grass" or
+				             node.name == "lualore:crystal_glass" or
+				             node.name == "lualore:skystone") then
 					crystal_grass_count = crystal_grass_count + 1
 					table.insert(crystal_grass_positions, pos)
 				end
@@ -110,14 +149,24 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
 		local fortress_pos = crystal_grass_positions[1]
 		local fortress_hash = minetest.hash_node_position(fortress_pos)
 
+		minetest.log("action", "[lualore] Found fortress location at " .. minetest.pos_to_string(fortress_pos) ..
+			" with " .. crystal_grass_count .. " crystal grass blocks")
+
 		minetest.after(3, function()
 			if lualore.sky_villages and lualore.sky_villages.spawn_sky_folk then
-				lualore.sky_villages.spawn_sky_folk(fortress_pos, fortress_hash)
+				local success = lualore.sky_villages.spawn_sky_folk(fortress_pos, fortress_hash)
+				if success then
+					minetest.log("action", "[lualore] Successfully spawned Sky Folk at fortress")
+				else
+					minetest.log("warning", "[lualore] Sky Folk already spawned or failed at fortress " .. fortress_hash)
+				end
 			end
 
 			if lualore.sky_valkyries then
 				local valkyrie_types_list = {"blue", "violet", "gold", "green"}
 				local num_valkyries = math.random(2, 5)
+
+				minetest.log("action", "[lualore] Spawning " .. num_valkyries .. " Valkyries at fortress")
 
 				for i = 1, num_valkyries do
 					local random_offset = {
@@ -129,9 +178,14 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
 					local chosen_type = valkyrie_types_list[math.random(1, #valkyrie_types_list)]
 					local mob_name = "lualore:" .. chosen_type .. "_valkyrie"
 
-					minetest.add_entity(spawn_pos, mob_name)
-					minetest.log("action", "[lualore] Spawned " .. chosen_type .. " Valkyrie at fortress (offset: " ..
-						random_offset.x .. "," .. random_offset.y .. "," .. random_offset.z .. ")")
+					local obj = minetest.add_entity(spawn_pos, mob_name)
+					if obj then
+						minetest.log("action", "[lualore] Spawned " .. chosen_type .. " Valkyrie at " ..
+							minetest.pos_to_string(spawn_pos))
+					else
+						minetest.log("error", "[lualore] Failed to spawn " .. chosen_type .. " Valkyrie at " ..
+							minetest.pos_to_string(spawn_pos))
+					end
 				end
 			end
 		end)

@@ -511,4 +511,32 @@ minetest.register_globalstep(function(dtime)
     end
 end)
 
+-- Clear all effects when player dies
+minetest.register_on_dieplayer(function(player)
+    local player_name = player:get_player_name()
+    if player_effects[player_name] then
+        -- Clear shadow veil effect specifically
+        if player_effects[player_name]["shadow_veil"] then
+            player:override_day_night_ratio(nil)
+        end
+
+        -- Clear storm compress visual effects
+        if player_effects[player_name]["storm_compress"] then
+            player:set_properties({visual_size = {x=1, y=1}})
+            player:override_day_night_ratio(nil)
+        end
+
+        -- Reset all physics overrides
+        player:set_physics_override({
+            speed = 1.0,
+            jump = 1.0,
+            gravity = 1.0
+        })
+
+        -- Clear all effects for this player
+        player_effects[player_name] = nil
+        minetest.log("action", "[lualore] Cleared all valkyrie strike effects for " .. player_name .. " on death")
+    end
+end)
+
 minetest.log("action", "[lualore] Valkyrie strike system loaded")
