@@ -13,7 +13,7 @@ local sky_fortress_noise = {
 
 local sky_house_noise = {
 	offset = 0,
-	scale = 0.001,
+	scale = 0.0018,
 	spread = {x = 720, y = 720, z = 720},
 	seed = 73829,
 	octaves = 3,
