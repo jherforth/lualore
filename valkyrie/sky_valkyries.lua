@@ -176,12 +176,21 @@ for _, valkyrie in ipairs(valkyrie_types) do
             self.hover_timer = 0
             self.hover_offset = math.random() * 2 * math.pi
             self.wing_flap_timer = 0
+            self.just_spawned = true
+            self.spawn_fly_timer = 5
 
             -- Set base texture only (wings handled by attached entity)
             self.object:set_properties({ textures = {valkyrie_texture} })
 
             -- Attach wing sprite
             attach_wings(self.object, color)
+
+            -- Start in flight mode
+            minetest.after(0.1, function()
+                if self and self.object then
+                    self.object:set_velocity({x=0, y=2, z=0})
+                end
+            end)
         end,
 
         -- Reliable cleanup: Find and remove attached wing entity on death
@@ -254,6 +263,14 @@ for _, valkyrie in ipairs(valkyrie_types) do
                 self.hover_timer = (self.hover_timer or 0) + dtime
                 self.wing_flap_timer = (self.wing_flap_timer or 0) + dtime
 
+                if self.spawn_fly_timer then
+                    self.spawn_fly_timer = self.spawn_fly_timer - dtime
+                    if self.spawn_fly_timer <= 0 then
+                        self.spawn_fly_timer = nil
+                        self.just_spawned = false
+                    end
+                end
+
                 local hover_y = math.sin((self.hover_timer + (self.hover_offset or 0)) * 2) * 0.4
                 local wing_angle = math.sin(self.wing_flap_timer * 8) * 20
 
@@ -265,27 +282,31 @@ for _, valkyrie in ipairs(valkyrie_types) do
                     is_moving = math.abs(vel.x) > 0.5 or math.abs(vel.z) > 0.5 or math.abs(vel.y) > 0.5
                 end
 
-                -- Only fly when in combat (has a target)
-                if target and target:is_player() then
+                -- Stay in flight during spawn period or when in combat
+                if self.just_spawned or (target and target:is_player()) then
                     in_flight = true
                     if vel and vel.x and vel.y and vel.z then
-                        if math.abs(vel.x) < 0.5 and math.abs(vel.z) < 0.5 then
+                        if self.just_spawned then
+                            if vel.y < 0 then
+                                self.object:set_velocity({x=vel.x * 0.8, y=hover_y + 0.5, z=vel.z * 0.8})
+                            end
+                        elseif math.abs(vel.x) < 0.5 and math.abs(vel.z) < 0.5 then
                             self.object:set_velocity({x=vel.x, y=hover_y, z=vel.z})
                         elseif vel.y < -2 then
                             self.object:set_velocity({x=vel.x, y=vel.y * 0.7, z=vel.z})
                         end
                     end
                 else
-                    -- No target - descend to ground if airborne
+                    -- No target and spawn period over - descend to ground if airborne
                     if pos and pos.x and pos.y and pos.z then
                         local below_pos = {x=pos.x, y=pos.y - 0.5, z=pos.z}
                         local node_below = minetest.get_node(below_pos)
 
                         -- Check if there's solid ground below
                         if node_below.name == "air" or node_below.name == "ignore" then
-                            -- Still airborne, apply descent velocity
+                            -- Still airborne, apply gentle descent velocity
                             if vel and vel.x and vel.z then
-                                self.object:set_velocity({x=vel.x * 0.8, y=-3, z=vel.z * 0.8})
+                                self.object:set_velocity({x=vel.x * 0.8, y=-1.5, z=vel.z * 0.8})
                             end
                         end
                     end

@@ -121,7 +121,7 @@ local function free_sky_folk(sky_folk_entity)
 end
 
 function lualore.sky_liberation.check_and_liberate(death_pos)
-	local search_radius = 50
+	local search_radius = 100
 
 	local objects = minetest.get_objects_inside_radius(death_pos, search_radius)
 
