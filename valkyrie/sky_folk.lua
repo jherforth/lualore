@@ -16,7 +16,7 @@ local function play_humming_sound(self)
 		if pos then
 			minetest.sound_play(sound_name, {
 				pos = pos,
-				gain = 0.3,
+				gain = 0.2,
 				max_hear_distance = 10
 			})
 		end
@@ -132,7 +132,7 @@ mobs:register_mob("lualore:sky_folk", {
 			local sound_name = humming_sounds[math.random(1, #humming_sounds)]
 			minetest.sound_play(sound_name, {
 				pos = pos,
-				gain = 0.5,
+				gain = 0.2,
 				max_hear_distance = 16
 			})
 		end
