@@ -10,6 +10,9 @@ minetest.register_node("lualore:valkyrie_chest", {
 		"lualore_chest_side.png",
 		"lualore_chest_front.png"
 	},
+	drawtype = "mesh",
+	mesh = "chest.b3d",
+	paramtype = "light",
 	paramtype2 = "facedir",
 	groups = {cracky = 2, oddly_breakable_by_hand = 2},
 	is_ground_content = false,
@@ -106,6 +109,9 @@ minetest.register_node("lualore:valkyrie_chest_opened", {
 		"lualore_chest_side.png",
 		"lualore_chest_front.png"
 	},
+	drawtype = "mesh",
+	mesh = "chest_open.b3d",
+	paramtype = "light",
 	paramtype2 = "facedir",
 	groups = {cracky = 2, oddly_breakable_by_hand = 2, not_in_creative_inventory = 1},
 	is_ground_content = false,
