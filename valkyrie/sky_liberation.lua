@@ -26,19 +26,8 @@ end
 local function play_liberation_music(pos)
 	if not can_play_music() then
 		minetest.log("action", "[lualore] Liberation music on cooldown, skipping")
-		minetest.sound_play("SkyforgeValkyrie", {
-			pos = pos,
-			gain = 0.5,
-			max_hear_distance = 80
-		})
 		return false
 	end
-
-	minetest.sound_play("SkyforgeValkyrie", {
-		pos = pos,
-		gain = 1.0,
-		max_hear_distance = 100
-	})
 
 	set_last_music_time(os.time())
 	minetest.log("action", "[lualore] Playing liberation music at full volume")
