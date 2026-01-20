@@ -2,38 +2,6 @@ local S = minetest.get_translator("lualore")
 
 lualore.sky_liberation = {}
 
-local storage = minetest.get_mod_storage()
-local MUSIC_COOLDOWN = 3600
-
-local function get_last_music_time()
-	local time_str = storage:get_string("last_liberation_music")
-	if time_str and time_str ~= "" then
-		return tonumber(time_str) or 0
-	end
-	return 0
-end
-
-local function set_last_music_time(time)
-	storage:set_string("last_liberation_music", tostring(time))
-end
-
-local function can_play_music()
-	local current_time = os.time()
-	local last_time = get_last_music_time()
-	return (current_time - last_time) >= MUSIC_COOLDOWN
-end
-
-local function play_liberation_music(pos)
-	if not can_play_music() then
-		minetest.log("action", "[lualore] Liberation music on cooldown, skipping")
-		return false
-	end
-
-	set_last_music_time(os.time())
-	minetest.log("action", "[lualore] Playing liberation music at full volume")
-	return true
-end
-
 local function spawn_liberation_particles(pos)
 	minetest.add_particlespawner({
 		amount = 100,
@@ -131,8 +99,6 @@ function lualore.sky_liberation.check_and_liberate(death_pos)
 
 	if not valkyries_found and #sky_folk_to_free > 0 then
 		minetest.log("action", "[lualore] All valkyries defeated! Liberating " .. #sky_folk_to_free .. " Sky Folk")
-
-		play_liberation_music(death_pos)
 
 		for _, sky_folk in ipairs(sky_folk_to_free) do
 			free_sky_folk(sky_folk)
