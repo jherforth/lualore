@@ -286,11 +286,9 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 		reward_x = reward_x + 4.2
 	end
 
-	local fulfill_btn = ""
-	if ready then
-		fulfill_btn = "button[3.2,12.1;3.6,0.8;fulfill_quest;Accept & Fulfill Quest]"
-	else
-		fulfill_btn = "button[3.2,12.1;3.6,0.8;fulfill_quest_disabled;Missing Items...]"
+	local missing_label = ""
+	if not ready then
+		missing_label = "label[0.3,11.85;" .. minetest.colorize("#FF8888", "You are missing required items. Gather them and right-click again.") .. "]"
 	end
 
 	local fs =
@@ -314,7 +312,6 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 
 		"item_image[0.3,3.65;1.0,1.0;" .. r1.name .. "]" ..
 		"label[1.45,4.0;" .. minetest.formspec_escape(item_display_name(r1.name)) .. " x" .. r1.count .. "]" ..
-		"label[1.45,4.35;]" ..
 		"label[7.8,4.0;Have: ]" ..
 		"label[8.6,4.0;" .. minetest.colorize(item_row_color(have1, r1.count), have1 .. " / " .. r1.count) .. "]" ..
 
@@ -337,7 +334,9 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 
 		"box[0,10.6;10.5,0.05;#334455]" ..
 
-		fulfill_btn ..
+		missing_label ..
+
+		"button[3.2,12.1;3.6,0.8;fulfill_quest;Accept & Fulfill Quest]" ..
 		"button[7.0,12.1;2.8,0.8;close_quest;Decline]"
 
 	minetest.show_formspec(player_name, "lualore:sky_folk_quest", fs)
@@ -360,15 +359,6 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		return true
 	end
 
-	if fields.fulfill_quest_disabled then
-		lualore.sky_folk_quests._open_quests = lualore.sky_folk_quests._open_quests or {}
-		local sky_folk_entity = lualore.sky_folk_quests._open_quests[player_name]
-		if sky_folk_entity and sky_folk_entity.sf_quest then
-			lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
-		end
-		return true
-	end
-
 	if fields.fulfill_quest then
 		lualore.sky_folk_quests._open_quests = lualore.sky_folk_quests._open_quests or {}
 		local sky_folk_entity = lualore.sky_folk_quests._open_quests[player_name]
@@ -380,11 +370,8 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 
 		local quest = sky_folk_entity.sf_quest
 
-		local ok, missing_name, needed, have = player_has_quest_items(player, quest.required_items)
+		local ok = player_has_quest_items(player, quest.required_items)
 		if not ok then
-			local display = item_display_name(missing_name)
-			minetest.chat_send_player(player_name,
-				S("You are missing items. You need @1 x@2 but only have @3.", display, needed, have))
 			lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 			return true
 		end
