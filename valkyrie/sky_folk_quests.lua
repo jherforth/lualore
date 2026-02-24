@@ -343,6 +343,11 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 
 	lualore.sky_folk_quests._open_quests = lualore.sky_folk_quests._open_quests or {}
 	lualore.sky_folk_quests._open_quests[player_name] = sky_folk_entity
+
+	sky_folk_entity.nv_has_active_quest = true
+	if lualore.sky_folk_mood then
+		lualore.sky_folk_mood.update_indicator(sky_folk_entity)
+	end
 end
 
 --------------------------------------------------------------------
@@ -355,6 +360,13 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 
 	if fields.close_quest or fields.quit then
 		lualore.sky_folk_quests._open_quests = lualore.sky_folk_quests._open_quests or {}
+		local declining_entity = lualore.sky_folk_quests._open_quests[player_name]
+		if declining_entity then
+			declining_entity.nv_has_active_quest = false
+			if lualore.sky_folk_mood then
+				lualore.sky_folk_mood.update_indicator(declining_entity)
+			end
+		end
 		lualore.sky_folk_quests._open_quests[player_name] = nil
 		return true
 	end
@@ -381,7 +393,11 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 
 		sky_folk_entity.sf_quest = nil
 		sky_folk_entity.sf_quest_fulfilled = true
+		sky_folk_entity.nv_has_active_quest = false
 		lualore.sky_folk_quests._open_quests[player_name] = nil
+		if lualore.sky_folk_mood then
+			lualore.sky_folk_mood.update_indicator(sky_folk_entity)
+		end
 
 		minetest.chat_send_player(player_name,
 			S("The Sky Folk bows graciously and offers you their gift."))

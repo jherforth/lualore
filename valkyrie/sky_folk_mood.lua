@@ -227,7 +227,9 @@ function lualore.sky_folk_mood.update_indicator(self)
 	local desire_data = self.nv_current_desire and lualore.sky_folk_mood.desires[self.nv_current_desire]
 
 	local texture = mood_data.texture
-	if desire_data and math.random(100) < 60 then
+	if self.nv_has_active_quest then
+		texture = lualore.sky_folk_mood.desires.trade.texture
+	elseif desire_data and math.random(100) < 60 then
 		texture = desire_data.texture
 	end
 
