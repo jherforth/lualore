@@ -286,18 +286,23 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 		reward_x = reward_x + 4.2
 	end
 
-	local missing_label = ""
-	local accept_button_label = "Accept & Fulfill Quest"
-	if not ready then
-		missing_label = "label[0.3,11.85;" .. minetest.colorize("#FF8888", "You are missing some items. Gather them and right-click to return.") .. "]"
-		accept_button_label = "Close (Come Back Later)"
+	local cta_text, accept_label, decline_label
+	if ready then
+		cta_text = minetest.colorize("#88FF88", "You have exactly what I need! Will you accept these as a thanks?")
+		accept_label = "Accept & Fulfill"
+		decline_label = "Decline"
+	else
+		cta_text = minetest.colorize("#FFCC66",
+			"You are missing items. Accept this quest and return for this\nhandsome reward — or decline and lose this offer forever.")
+		accept_label = "Accept Quest"
+		decline_label = "Decline Forever"
 	end
 
 	local fs =
 		"formspec_version[3]" ..
-		"size[10.5,13.2]" ..
+		"size[10.5,13.5]" ..
 
-		"background9[0,0;10.5,13.2;lualore_mood_bg.png;false;2]" ..
+		"background9[0,0;10.5,13.5;lualore_mood_bg.png;false;2]" ..
 		"box[0,0;10.5,0.7;#1a2a3a]" ..
 
 		"label[0.3,0.4;Quest Offer]" ..
@@ -330,16 +335,15 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 		"box[0,7.15;10.5,0.05;#334455]" ..
 
 		"label[0.3,7.45;Reward Offered:]" ..
-		"label[0.3,7.75;" .. minetest.colorize("#FFDD88", "Right-click the Sky Folk anytime to return and fulfill this quest.") .. "]" ..
 
 		reward_items_fs ..
 
 		"box[0,10.6;10.5,0.05;#334455]" ..
 
-		missing_label ..
+		"textarea[0.3,10.8;9.9,1.4;;;" .. cta_text .. "]" ..
 
-		"button[3.2,12.1;3.6,0.8;fulfill_quest;" .. minetest.formspec_escape(accept_button_label) .. "]" ..
-		"button[7.0,12.1;2.8,0.8;close_quest;Close]"
+		"button[2.6,12.5;3.6,0.8;fulfill_quest;" .. minetest.formspec_escape(accept_label) .. "]" ..
+		"button[6.4,12.5;3.6,0.8;decline_quest;" .. minetest.formspec_escape(decline_label) .. "]"
 
 	minetest.show_formspec(player_name, "lualore:sky_folk_quest", fs)
 
@@ -350,9 +354,6 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 	if lualore.sky_folk_mood then
 		lualore.sky_folk_mood.update_indicator(sky_folk_entity)
 	end
-	if lualore.sky_folk_compass then
-		lualore.sky_folk_compass.start(player, sky_folk_entity)
-	end
 end
 
 --------------------------------------------------------------------
@@ -362,14 +363,31 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 	if formname ~= "lualore:sky_folk_quest" then return false end
 
 	local player_name = player:get_player_name()
+	lualore.sky_folk_quests._open_quests = lualore.sky_folk_quests._open_quests or {}
+	local sky_folk_entity = lualore.sky_folk_quests._open_quests[player_name]
 
-	if fields.close_quest or fields.quit then
-		lualore.sky_folk_quests._open_quests = lualore.sky_folk_quests._open_quests or {}
-		local declining_entity = lualore.sky_folk_quests._open_quests[player_name]
-		if declining_entity then
-			declining_entity.nv_has_active_quest = false
+	-- X button / ESC: treat same as closing without accepting or declining (quest stays)
+	if fields.quit then
+		if sky_folk_entity then
+			sky_folk_entity.nv_has_active_quest = false
 			if lualore.sky_folk_mood then
-				lualore.sky_folk_mood.update_indicator(declining_entity)
+				lualore.sky_folk_mood.update_indicator(sky_folk_entity)
+			end
+		end
+		lualore.sky_folk_quests._open_quests[player_name] = nil
+		if lualore.sky_folk_compass then
+			lualore.sky_folk_compass.stop(player_name)
+		end
+		return true
+	end
+
+	-- Decline: permanently forfeit this quest offer
+	if fields.decline_quest then
+		if sky_folk_entity then
+			sky_folk_entity.sf_quest = nil
+			sky_folk_entity.nv_has_active_quest = false
+			if lualore.sky_folk_mood then
+				lualore.sky_folk_mood.update_indicator(sky_folk_entity)
 			end
 		end
 		lualore.sky_folk_quests._open_quests[player_name] = nil
@@ -377,15 +395,15 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 			lualore.sky_folk_compass.stop(player_name)
 		end
 		minetest.close_formspec(player_name, "lualore:sky_folk_quest")
+		minetest.chat_send_player(player_name,
+			S("The Sky Folk nods solemnly. The offer is gone."))
 		return true
 	end
 
 	if fields.fulfill_quest then
-		lualore.sky_folk_quests._open_quests = lualore.sky_folk_quests._open_quests or {}
-		local sky_folk_entity = lualore.sky_folk_quests._open_quests[player_name]
-
 		if not sky_folk_entity or not sky_folk_entity.sf_quest then
 			minetest.chat_send_player(player_name, S("The Sky Folk has moved on."))
+			minetest.close_formspec(player_name, "lualore:sky_folk_quest")
 			return true
 		end
 
@@ -393,17 +411,18 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 
 		local ok = player_has_quest_items(player, quest.required_items)
 		if not ok then
-			sky_folk_entity.nv_has_active_quest = false
-			lualore.sky_folk_quests._open_quests[player_name] = nil
+			-- Accept quest but player doesn't have items yet — start compass, close form
+			sky_folk_entity.nv_has_active_quest = true
+			lualore.sky_folk_quests._open_quests[player_name] = sky_folk_entity
 			if lualore.sky_folk_mood then
 				lualore.sky_folk_mood.update_indicator(sky_folk_entity)
 			end
 			if lualore.sky_folk_compass then
-				lualore.sky_folk_compass.stop(player_name)
+				lualore.sky_folk_compass.start(player, sky_folk_entity)
 			end
 			minetest.close_formspec(player_name, "lualore:sky_folk_quest")
 			minetest.chat_send_player(player_name,
-				S("You don't have everything yet. Return when you have all the items."))
+				S("Quest accepted! Follow the arrow to find this Sky Folk again once you have the items."))
 			return true
 		end
 
@@ -421,6 +440,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 			lualore.sky_folk_compass.stop(player_name)
 		end
 
+		minetest.close_formspec(player_name, "lualore:sky_folk_quest")
 		minetest.chat_send_player(player_name,
 			S("The Sky Folk bows graciously and offers you their gift."))
 

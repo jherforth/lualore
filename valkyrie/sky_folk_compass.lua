@@ -49,11 +49,10 @@ local function remove_hud(player_name)
 	local t = _trackers[player_name]
 	if not t then return end
 	local player = minetest.get_player_by_name(player_name)
-	if player and t.hud_arrow then
-		player:hud_remove(t.hud_arrow)
-	end
-	if player and t.hud_dist then
-		player:hud_remove(t.hud_dist)
+	if player then
+		if t.hud_arrow then player:hud_remove(t.hud_arrow) end
+		if t.hud_dist  then player:hud_remove(t.hud_dist)  end
+		if t.hud_label then player:hud_remove(t.hud_label) end
 	end
 	_trackers[player_name] = nil
 end
@@ -83,10 +82,21 @@ function lualore.sky_folk_compass.start(player, sky_folk_entity)
 		alignment     = {x = 0, y = 0},
 	})
 
+	local label_id = player:hud_add({
+		hud_elem_type = "text",
+		position      = {x = 0.5, y = 0.85},
+		offset        = {x = 0, y = HUD_SIZE * 1.3},
+		text          = "Return to Sky Folk",
+		number        = 0xFFDD88,
+		scale         = {x = 100, y = 100},
+		alignment     = {x = 0, y = 0},
+	})
+
 	_trackers[player_name] = {
-		entity    = sky_folk_entity,
-		hud_arrow = arrow_id,
-		hud_dist  = dist_id,
+		entity     = sky_folk_entity,
+		hud_arrow  = arrow_id,
+		hud_dist   = dist_id,
+		hud_label  = label_id,
 	}
 end
 
