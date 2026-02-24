@@ -287,8 +287,10 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 	end
 
 	local missing_label = ""
+	local accept_button_label = "Accept & Fulfill Quest"
 	if not ready then
-		missing_label = "label[0.3,11.85;" .. minetest.colorize("#FF8888", "You are missing required items. Gather them and right-click again.") .. "]"
+		missing_label = "label[0.3,11.85;" .. minetest.colorize("#FF8888", "You are missing some items. Gather them and right-click to return.") .. "]"
+		accept_button_label = "Close (Come Back Later)"
 	end
 
 	local fs =
@@ -298,7 +300,7 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 		"background9[0,0;10.5,13.2;lualore_mood_bg.png;false;2]" ..
 		"box[0,0;10.5,0.7;#1a2a3a]" ..
 
-		"label[0.3,0.4;Quest Offer — One Time Only]" ..
+		"label[0.3,0.4;Quest Offer]" ..
 
 		"box[0,0.75;10.5,0.05;#334455]" ..
 
@@ -328,7 +330,7 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 		"box[0,7.15;10.5,0.05;#334455]" ..
 
 		"label[0.3,7.45;Reward Offered:]" ..
-		"label[0.3,7.75;" .. minetest.colorize("#FFDD88", "This is a one-time offer. Decline and the reward is gone forever.") .. "]" ..
+		"label[0.3,7.75;" .. minetest.colorize("#FFDD88", "Right-click the Sky Folk anytime to return and fulfill this quest.") .. "]" ..
 
 		reward_items_fs ..
 
@@ -336,8 +338,8 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 
 		missing_label ..
 
-		"button[3.2,12.1;3.6,0.8;fulfill_quest;Accept & Fulfill Quest]" ..
-		"button[7.0,12.1;2.8,0.8;close_quest;Decline]"
+		"button[3.2,12.1;3.6,0.8;fulfill_quest;" .. minetest.formspec_escape(accept_button_label) .. "]" ..
+		"button[7.0,12.1;2.8,0.8;close_quest;Close]"
 
 	minetest.show_formspec(player_name, "lualore:sky_folk_quest", fs)
 
@@ -374,6 +376,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		if lualore.sky_folk_compass then
 			lualore.sky_folk_compass.stop(player_name)
 		end
+		minetest.close_formspec(player_name, "lualore:sky_folk_quest")
 		return true
 	end
 
@@ -390,7 +393,17 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 
 		local ok = player_has_quest_items(player, quest.required_items)
 		if not ok then
-			lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
+			sky_folk_entity.nv_has_active_quest = false
+			lualore.sky_folk_quests._open_quests[player_name] = nil
+			if lualore.sky_folk_mood then
+				lualore.sky_folk_mood.update_indicator(sky_folk_entity)
+			end
+			if lualore.sky_folk_compass then
+				lualore.sky_folk_compass.stop(player_name)
+			end
+			minetest.close_formspec(player_name, "lualore:sky_folk_quest")
+			minetest.chat_send_player(player_name,
+				S("You don't have everything yet. Return when you have all the items."))
 			return true
 		end
 
