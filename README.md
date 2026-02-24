@@ -1,259 +1,169 @@
 # Lua Lore
 
-A comprehensive villager and lore mod for Luanti (formerly Minetest) that adds living, breathing villages across multiple biomes with an advanced NPC mood and interaction system.
+A villager and lore mod for Luanti (formerly Minetest) that adds living villages across multiple biomes with NPCs that have moods, trades, and unique behaviors. Explore floating sky cities, discover underground wizard castles, and interact with diverse communities.
 
 ## Features
 
-### 🏘️ Multiple Biome Villages
+### 🏘️ Biome Villages
 
-The mod generates villages in six distinct biomes, each with unique architecture and culture:
+Villages generate naturally in six distinct biomes:
 
-- **Grassland Villages** - Traditional settlements with farming communities
-- **Desert Villages** - Sandy oasis towns with exotic markets
-- **Savanna Villages** - Tribal communities with ceremonial shrines
-- **Lake Villages** - Fishing communities built near water
-- **Ice Villages** - Hardy settlements in frozen tundra
-- **Jungle Villages** - Dangerous jungle tribes with unique customs
+- **Grassland** - Farming communities with traditional architecture
+- **Desert** - Oasis settlements with markets and exotic trades
+- **Savanna** - Tribal villages with ceremonial shrines
+- **Lake** - Fishing communities built near water
+- **Ice** - Hardy settlements in frozen tundra
+- **Jungle** - Tribal communities with unique customs
 
-### 👥 Diverse Villager Classes
+### 👥 Villager Types
 
-Each village is populated with various NPC types, each with unique behaviors, trades, and roles:
+Villages are populated with different NPCs, each with their own trades and behaviors:
 
-- **Hostile** - Aggressive NPCs that attack on sight
-- **Raider** - Combat-focused NPCs that attack players and other NPCs
-- **Ranger** - Defensive NPCs that protect villages from monsters
-- **Jeweler** - Traders specializing in precious gems and metals
-- **Farmer** - Agricultural workers who trade crops and food
-- **Blacksmith** - Craftsmen trading tools, weapons, and materials
-- **Fisherman** - Aquatic specialists trading fish and fishing supplies
-- **Cleric** - Mystical NPCs with magical items
-- **Bum** - Humble NPCs with modest trades
-- **Entertainer** - Social NPCs that enhance village atmosphere
-- **Witch** - Hostile magic users with dual attacks: melee punches (7 damage, within 1 block) and frequent teleportation spells (10 blocks random direction, 1-5 blocks range, 2s cooldown)
+- **Farmers** - Trade crops and food
+- **Blacksmiths** - Trade tools and weapons
+- **Jewelers** - Trade gems and metals
+- **Fishermen** - Trade fish and aquatic items
+- **Clerics** - Trade mystical items
+- **Rangers** - Protect villages from monsters
+- **Entertainers** - Add atmosphere to villages
+- **Witches** - Hostile magic users with teleportation abilities
+- **Raiders & Hostile NPCs** - Dangerous enemies
 
-### 🎭 Advanced Mood System
+### 🎭 Villager Moods
 
-NPCs feature a sophisticated emotional system with visual and audio feedback:
+NPCs have emotions that affect their behavior. They display mood icons above their heads and make sounds based on how they feel. Villagers can be happy, content, neutral, sad, angry, hungry, lonely, or scared.
 
-#### Moods
-- **😊 Happy** - High mood value (80+)
-- **🙂 Content** - Good mood (60-79)
-- **😐 Neutral** - Average mood (40-59)
-- **😢 Sad** - Low mood (20-39)
-- **😠 Angry** - Very low mood (0-19)
-- **🍖 Hungry** - When hunger exceeds 80
-- **💔 Lonely** - When loneliness exceeds 80
-- **😨 Scared** - When fear exceeds 70
+Feed them bread or apples to keep them happy, and trade with them to reduce their loneliness.
 
-#### Desires
-NPCs display their needs through visual indicators:
-- **🍞 Food** - When hungry (hunger > 70)
-- **💰 Trade** - When they want to trade
-- **👥 Companionship** - When lonely (loneliness > 60)
-- **🛡️ Safety** - When scared (fear > 50)
-- **💤 Rest** - When health is low (< 15)
+### 💱 Trading
 
-#### Mood Factors
-NPC mood is calculated based on:
-- **Hunger** - Increases over time, decreases when fed
-- **Loneliness** - Increases without interaction, decreases with player contact
-- **Fear** - Increases during combat, decreases when safe
-- **Health** - Lower health negatively affects mood
-- **Ownership** - Tamed NPCs receive a mood bonus
+Hold an item a villager wants and approach them. They'll show a trade icon when interested. Right-click while sneaking or punch with the trade item to complete the trade.
 
-### 🔊 Dynamic Sound System
+### 🧙 Cave Wizards
 
-NPCs emit sounds based on their emotional state:
+Deep underground in rare cave castles, you'll find powerful wizards of four colors:
 
-- **Mood Sounds** - angry, content, happy, hungry, lonely, neutral, sad, scared
-- **Action Sounds** - trade (when trading), villager_fed (when fed), rest (when needing rest)
-- **Conditions**:
-  - Plays when player is within 3 nodes of NPC
-  - Configurable repeat delay (default: 10 seconds)
-  - Trade and feed sounds override mood sounds
-  - Rest desire rotates with mood sounds
+- **Black Wizards** - Wield dark magic
+- **White Wizards** - Channel pure energy
+- **Red Wizards** - Command fire magic
+- **Gold Wizards** - Master precious magic
 
-**Configuration**: Edit `nativevillages.mood.sound_repeat_delay` in `npcmood.lua` to adjust sound frequency.
+Defeat them to obtain their magical wands, which grant you powerful abilities. Each wand type has unique magical properties for combat and exploration.
 
-### 💱 Trading System
+### 🛡️ Valkyries & Sky Folk
 
-Interact with villagers to trade items:
+High above the clouds, floating sky villages hold an ancient secret. Valkyries of four colors guard imprisoned Sky Folk:
 
-1. **Initiate Trade** - Hold a desired trade item and approach the NPC
-2. **Trade Indicator** - NPCs show a trade desire icon when interested
-3. **Execute Trade** - Right-click while sneaking OR punch with the trade item
-4. **Receive Items** - NPCs drop items from their loot table
+- **Blue Valkyries**
+- **Green Valkyries**
+- **Violet Valkyries**
+- **Gold Valkyries**
 
-**Trade Benefits**:
-- Reduces loneliness (-25)
-- Reduces hunger (-15)
-- Improves overall mood
-- Resets interaction timer
-
-### 🍞 Feeding System
-
-Keep villagers happy by feeding them:
-
-- **Bread** - Reduces hunger significantly, heals +5 HP
-- **Apple** - Reduces hunger moderately, heals +5 HP
-- Plays special "villager_fed" sound
-- Resets hunger to 1
-- Resets interaction timer
-
-### 🚪 Smart Doors System
-
-Doors in villages automatically detect and respond to nearby NPCs:
-
-- **Automatic Opening** - Doors open when NPCs approach within 2.5 blocks
-- **Automatic Closing** - Doors close 3 seconds after all NPCs leave
-- **Multi-NPC Support** - Multiple NPCs can use the same door without conflicts
-- **Selective Opening** - Only opens for friendly NPCs, not hostile mobs
-- **Quiet Operation** - Door sounds play at 30% volume to reduce noise
-
-**Configuration**: Edit `smart_doors.lua` to adjust detection radius and timing.
+Defeat the Valkyries to free the Sky Folk. Once liberated, they'll mark the location of other captive Sky Folk with magical pins and send you on quests to free their companions. Free enough Sky Folk and earn special rewards.
 
 ### 🏗️ Village Buildings
 
-Villages are compact settlements that fit within 1-2 mapchunks (80-160 nodes across), creating well-organized communities rather than sprawling cities.
+Each biome has unique structures including houses, churches, markets, stables, shrines, and special decorative elements. Villages generate naturally and feature authentic architecture for their environment.
 
-Each biome features unique structures:
+### 🚪 Smart Doors
 
-- **Grassland**: Houses, stables, ponds, ceremonial blots, altars
-- **Desert**: Adobe houses, markets, wells, stables, cages
-- **Savanna**: Thatched huts, shrines, thrones, wells, witch houses
-- **Lake**: Waterfront houses, harbours, fish traps
-- **Ice**: Igloos, sledges, log piles, pelt storage
-- **Jungle**: Tribal houses, cages, towers, ritual pits, shrines
-
-**Village Generation:**
-- Villages generate naturally in their respective biomes
-- Each village is limited to 1-2 mapchunks for compact, organized layouts
-- Central buildings (churches, markets, stables) are rare and only appear in established villages
-- Building placement uses noise-based distribution for natural, organic clustering
-
-### 📦 Special Items & Blocks
-
-The mod includes numerous decorative and functional items:
-
-- **Food Items**: Catfish (raw/cooked), chicken (raw/cooked), cheese, butter, milk
-- **Decorative**: Carpets, blankets, barrels, shrines, altars, vessels
-- **Functional**: Fish traps, sledges, cages, hookah
-- **Special**: Dried human meat, toad bags, pearls, fireballs
+Village doors automatically open when NPCs approach and close after they pass through.
 
 ## Installation
 
 1. Download or clone this repository
-2. Place the `lualore-main` folder in your Luanti mods directory
+2. Place the folder in your Luanti mods directory
 3. Enable the mod in your world settings
 
 ## Dependencies
 
-- **mobs** (mobs_redo) - Required
-- **default** - Required
-- **farming** - Required
-- **3d_armour** - Required
-- **caverealms** - required
-- **everness** - required
-- **ethereal** - required
+- **mobs** (mobs_redo), **default**, **farming**, **3d_armour** - Required
+- **caverealms**, **everness**, **ethereal** - Required for biome support
 - **intllib** - Optional (for translations)
-- **OR** just play on an Asuna server as Asuna already meets all fo the required dependencies
+- **OR** play on an Asuna server which includes all dependencies
 
 ## Usage
 
-### Interacting with Villagers
+- **Right-click** - Interact with villagers
+- **Right-click + Sneak** - Trade with held item
+- **Right-click with food** - Feed villagers
+- Some villagers can be tamed and will follow you
 
-- **Right-click** - Basic interaction (reduces loneliness)
-- **Right-click + Sneak** - Attempt trade with held item
-- **Punch with trade item** - Alternative trade method
-- **Right-click with food** - Feed the villager
-
-### Taming Villagers
-
-Villagers can be tamed using appropriate items (varies by class):
-- Tamed villagers follow you
-- They receive mood bonuses
-- Can be ordered to follow or stand still
-- Can be captured with nets or lassos
-
-### Reading Mood Indicators
-
-Point at the mood indicator sprite above an NPC's head to see:
-- Current mood emoji
-- Health points
-- Hunger level
-
-## Technical Details
-
-### Mood System Architecture
-
-- Updates every 5 seconds for performance
-- Persistent data saved with NPCs
-- Error handling prevents crashes
-- Modular design for easy extension
-
-### Sound System
-
-- 3-node detection radius
-- 5-node hearing radius
-- Per-NPC sound timers
-- Configurable repeat delays
-- Positional 3D audio
-
-### File Structure
+## File Structure
 
 ```
 lualore/
-├── init.lua                          # Main mod initialization and load order
+├── init.lua                          # Main mod initialization
 ├── mod.conf                          # Mod metadata and dependencies
-├── intllib.lua                       # Internationalization library
-├── villagers/                        # All villager and village systems
-│   ├── HOW_TO_MODIFY_TRADES.md      # Trading system documentation
-│   ├── REPOPULATE_VILLAGERS.md      # Villager spawning guide
+├── intllib.lua                       # Internationalization support
+├── villagers/                        # Villager and village systems
+│   ├── HOW_TO_MODIFY_TRADES.md      # Trading documentation
+│   ├── REPOPULATE_VILLAGERS.md      # Spawning guide
 │   ├── blocks/                       # Biome-specific decorative blocks
-│   │   ├── jungleblocks.lua
-│   │   ├── savannablocks.lua
 │   │   ├── arcticblocks.lua
+│   │   ├── desertblocks.lua
 │   │   ├── grasslandblocks.lua
+│   │   ├── jungleblocks.lua
 │   │   ├── lakeblocks.lua
-│   │   └── desertblocks.lua
-│   ├── buildings/                    # Biome-specific building generators
-│   │   ├── junglebuildings.lua
-│   │   ├── savannabuildings.lua
-│   │   ├── icebuildings.lua
+│   │   └── savannablocks.lua
+│   ├── buildings/                    # Biome-specific structures
+│   │   ├── desertbuildings.lua
 │   │   ├── grasslandbuildings.lua
+│   │   ├── icebuildings.lua
+│   │   ├── junglebuildings.lua
 │   │   ├── lakebuildings.lua
-│   │   └── desertbuildings.lua
-│   ├── systems/                      # Core villager and village systems
-│   │   ├── npcmood.lua              # Mood and sound system
-│   │   ├── villagers.lua            # Villager definitions and behavior
-│   │   ├── villager_behaviors.lua   # NPC AI and interaction logic
-│   │   ├── house_spawning.lua       # Villager spawn system
-│   │   ├── village_noise.lua        # Village generation parameters
+│   │   └── savannabuildings.lua
+│   ├── systems/                      # Core systems
+│   │   ├── house_spawning.lua       # Villager spawning
+│   │   ├── npcmood.lua              # Mood and emotions
+│   │   ├── smart_doors.lua          # Automatic doors
 │   │   ├── village_commands.lua     # Admin commands
-│   │   ├── smart_doors.lua          # Automatic door system
+│   │   ├── village_noise.lua        # Generation settings
+│   │   ├── villager_behaviors.lua   # AI and interactions
+│   │   ├── villagers.lua            # Villager definitions
 │   │   └── witch_magic.lua          # Witch abilities
-│   └── extras/                       # Optional fun content
-│       ├── explodingtoad.lua        # Explosive toad entity
-│       └── loot.lua                 # Loot tables and drops
-├── wizards/                          # Cave wizard system
-│   ├── WIZARD_SYSTEM.md             # Wizard documentation
-│   ├── cave_wizards.lua             # Wizard entity definitions
+│   └── extras/                       # Additional content
+│       ├── explodingtoad.lua
+│       └── loot.lua
+├── wizards/                          # Underground wizard system
+│   ├── WIZARD_SYSTEM.md
+│   ├── cave_wizards.lua             # Wizard entities
+│   ├── cavebuildings.lua            # Cave castles
 │   ├── wizard_magic.lua             # Wizard abilities
-│   └── cavebuildings.lua            # Underground structures
-├── models/                           # 3D models (.b3d)
+│   └── wizard_wands.lua             # Magical wands
+├── valkyrie/                         # Sky realm system
+│   ├── CHANGELOG.md
+│   ├── LIBERATION_SYSTEM.md
+│   ├── SKY_FOLK.md
+│   ├── TESTING_GUIDE.md
+│   ├── VALKYRIE_SYSTEM.md
+│   ├── floating_buildings.lua       # Sky structures
+│   ├── sky_blocks.lua               # Sky materials
+│   ├── sky_folk.lua                 # Sky folk entities
+│   ├── sky_folk_compass.lua         # Navigation tool
+│   ├── sky_folk_mood.lua            # Sky folk emotions
+│   ├── sky_folk_pins.lua            # Location markers
+│   ├── sky_folk_quests.lua          # Quest system
+│   ├── sky_folk_tracker.lua         # Liberation tracking
+│   ├── sky_liberation.lua           # Liberation mechanics
+│   ├── sky_valkyries.lua            # Valkyrie entities
+│   ├── sky_villages.lua             # Sky village generation
+│   ├── valkyrie_chest.lua           # Reward system
+│   └── valkyrie_strikes.lua         # Combat system
+├── models/                           # 3D models (.b3d, .obj)
 ├── textures/                         # Textures and sprites
 ├── sounds/                           # Sound effects (.ogg)
-└── schematics/                       # Building structures (.mts)
+└── schematics/                       # Building schematics (.mts)
 ```
 
 ## Credits
 
-This mod builds upon various Luanti modding techniques and community contributions, including code and snippets, and sometimes just good old inspiration, from the following:
+Built upon contributions from the Luanti modding community:
 
-- FreeLikeGNU's Witches https://content.luanti.org/packages/FreeLikeGNU/witches
-- Shaft's Automatic Door Opening https://content.luanti.org/packages/shaft/auto_door
-- Liil's Native Villages https://content.luanti.org/packages/Liil/nativevillages (forked from)
-- Bosapara's Emoji https://content.luanti.org/packages/bosapara/emoji
+- FreeLikeGNU's Witches
+- Shaft's Automatic Door Opening
+- Liil's Native Villages (forked from)
+- Bosapara's Emoji
 
 ## License
 
@@ -261,26 +171,8 @@ See LICENSE file for details.
 
 ## Contributing
 
-Contributions from real devs are warmly welcomed! Please ensure:
-- Code follows existing style conventions (please be comment happy)
-- Test in multiple biomes
-- Document new features
-
-## Changelog
-
-### Recent Updates
-- **Witch Dual-Attack System**: Witches are now hostile monsters with melee punches (within 1 block, 7 damage) and frequent magic teleportation (1-5 blocks, 10 blocks displacement, 2s cooldown)
-- Added dynamic sound system with mood-based audio
-- Implemented configurable sound repeat delays
-- Enhanced NPC interaction feedback
-- Improved mood calculation and persistence
-- Added visual mood indicators with desires
-- Expanded trading system with villagers
-- Added Cave Wizards (but spawning Cave Castles needs refining by a pro)
-  - Wizard wands grant you new combat powers
-- Added Valkyrie and Sky Folk, who are suppressed by the Vaklyrie
-  - Save them and they will send you on a quest!
+Contributions are welcome! Please follow existing code conventions, test in multiple biomes, and document new features.
 
 ---
 
-**Note**: This mod is designed for Luanti (the open-source voxel game engine formerly known as Minetest).
+**Note**: This mod is designed for Luanti (formerly Minetest).
