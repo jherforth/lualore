@@ -73,6 +73,10 @@ local function free_sky_folk(sky_folk_entity)
 		spawn_liberation_particles(pos)
 	end
 
+	if lualore.sky_folk_mood then
+		lualore.sky_folk_mood.init_npc(sky_folk_entity)
+	end
+
 	minetest.log("action", "[lualore] Sky Folk liberated at " .. minetest.pos_to_string(pos))
 	return true
 end
@@ -120,9 +124,30 @@ function lualore.sky_liberation.check_and_liberate(death_pos)
 end
 
 function lualore.sky_liberation.serialize_sky_folk_data(self)
-	return {
+	local data = {
 		liberated = self.liberated or false
 	}
+
+	if self.liberated and lualore.sky_folk_mood then
+		local mood_data = lualore.sky_folk_mood.get_staticdata_extra(self)
+		for k, v in pairs(mood_data) do
+			data[k] = v
+		end
+	end
+
+	if self.liberated then
+		if self.sf_quest then
+			data.sf_quest = self.sf_quest
+		end
+		if self.nv_has_active_quest then
+			data.nv_has_active_quest = true
+		end
+		if self.sf_home_pos then
+			data.sf_home_pos = self.sf_home_pos
+		end
+	end
+
+	return data
 end
 
 function lualore.sky_liberation.deserialize_sky_folk_data(self, data)
@@ -149,6 +174,20 @@ function lualore.sky_liberation.deserialize_sky_folk_data(self, data)
 				})
 			end
 		end)
+
+		if lualore.sky_folk_mood then
+			lualore.sky_folk_mood.on_activate_extra(self, data)
+		end
+
+		if data.sf_quest then
+			self.sf_quest = data.sf_quest
+		end
+		if data.nv_has_active_quest then
+			self.nv_has_active_quest = true
+		end
+		if data.sf_home_pos then
+			self.sf_home_pos = data.sf_home_pos
+		end
 
 		minetest.log("action", "[lualore] Sky Folk restored as liberated")
 	end

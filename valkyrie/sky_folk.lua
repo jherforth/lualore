@@ -107,6 +107,15 @@ mobs:register_mob("lualore:sky_folk", {
 		return ""
 	end,
 
+	on_rightclick = function(self, clicker)
+		if not self.liberated then return end
+		if not clicker or not clicker:is_player() then return end
+
+		if lualore.sky_folk_quests then
+			lualore.sky_folk_quests.show_quest_formspec(clicker, self)
+		end
+	end,
+
 	on_punch = function(self, hitter, tflp, tool_capabilities, dir)
 		local pos = self.object:get_pos()
 		if pos then
@@ -140,6 +149,59 @@ mobs:register_mob("lualore:sky_folk", {
 
 	do_custom = function(self, dtime)
 		local success, err = pcall(function()
+			if self.liberated then
+				if lualore.sky_folk_mood then
+					lualore.sky_folk_mood.update_mood(self, dtime)
+				end
+
+				local pos = self.object:get_pos()
+				if pos then
+					if not self.sf_home_pos then
+						self.sf_home_pos = vector.new(pos.x, pos.y, pos.z)
+					end
+
+					local function has_ground_below(check_pos)
+						local below = {x = check_pos.x, y = check_pos.y - 1, z = check_pos.z}
+						local node = minetest.get_node(below)
+						return node and node.name ~= "air" and node.name ~= "ignore"
+					end
+
+					local function count_ground_ahead(p, dir, steps)
+						local count = 0
+						for i = 1, steps do
+							local ahead = vector.add(p, vector.multiply(dir, i))
+							if has_ground_below(ahead) then count = count + 1 end
+						end
+						return count
+					end
+
+					local vel = self.object:get_velocity()
+					if vel and (math.abs(vel.x) > 0.1 or math.abs(vel.z) > 0.1) then
+						local move_dir = vector.normalize({x = vel.x, y = 0, z = vel.z})
+						local ground_ahead = count_ground_ahead(pos, move_dir, 3)
+						if ground_ahead < 2 then
+							local home = self.sf_home_pos
+							local to_home = vector.normalize({
+								x = home.x - pos.x,
+								y = 0,
+								z = home.z - pos.z,
+							})
+							self.object:set_velocity({
+								x = to_home.x * 1.5,
+								y = vel.y,
+								z = to_home.z * 1.5,
+							})
+						end
+					end
+
+					if has_ground_below(pos) then
+						self.sf_home_pos = vector.new(pos.x, pos.y, pos.z)
+					end
+				end
+
+				return
+			end
+
 			if not self.sound_timer then
 				self.sound_timer = 0
 			end
@@ -182,6 +244,12 @@ mobs:register_mob("lualore:sky_folk", {
 
 		if not success then
 			minetest.log("error", "[lualore] Sky Folk do_custom error: " .. tostring(err))
+		end
+	end,
+
+	on_die = function(self, pos)
+		if lualore.sky_folk_mood then
+			lualore.sky_folk_mood.cleanup_indicator(self)
 		end
 	end,
 })
