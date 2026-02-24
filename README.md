@@ -140,63 +140,23 @@ The mod includes numerous decorative and functional items:
 - **Functional**: Fish traps, sledges, cages, hookah
 - **Special**: Dried human meat, toad bags, pearls, fireballs
 
-### 🐾 Custom Entities
-
-- **Animals**: Grassland cows, grassland cats, desert chickens, ice dogs, lions (male/female), catfish, toads
-- **Special NPCs**: Slave traders, dancers, lion trainers, chicken breeders, cow herders
-- **Tamed Zombies**: Witches can trade special zombie-taming items
-
 ## Installation
 
 1. Download or clone this repository
-2. Place the `nativevillages` folder in your Luanti mods directory
+2. Place the `lualore-main` folder in your Luanti mods directory
 3. Enable the mod in your world settings
-4. Requires the `mobs` mod (mobs_redo) as a dependency
 
 ## Dependencies
 
 - **mobs** (mobs_redo) - Required
 - **default** - Required
 - **farming** - Required
+- **3d_armour** - Required
+- **caverealms** - required
+- **everness** - required
+- **ethereal** - required
 - **intllib** - Optional (for translations)
-
-## Configuration
-
-### Visual Indicators
-Toggle mood indicators in `villagers/systems/npcmood.lua`:
-```lua
-nativevillages.mood.enable_visual_indicators = true  -- false to disable
-```
-
-### Sound Repeat Delay
-Adjust how often NPCs play sounds in `villagers/systems/npcmood.lua`:
-```lua
-nativevillages.mood.sound_repeat_delay = 10  -- seconds between sounds
-```
-
-### Village Size
-Adjust village compactness in `villagers/systems/village_noise.lua`:
-```lua
--- For single mapchunk villages (80 nodes)
-spread = {x = 80, y = 80, z = 80}
-
--- For current size (1-2 mapchunks, 100-160 nodes) - DEFAULT
-spread = {x = 100, y = 100, z = 100}
-
--- For larger villages (2-3 mapchunks, 160-240 nodes)
-spread = {x = 150, y = 150, z = 150}
-```
-
-### Smart Doors
-Adjust door detection in `villagers/systems/smart_doors.lua`:
-```lua
-DOOR_CHECK_INTERVAL = 1.0     -- Check for NPCs every second
-DOOR_DETECTION_RADIUS = 2.5   -- How close NPCs need to be
-DOOR_CLOSE_DELAY = 3          -- Seconds to wait before closing
-```
-
-### Village Spawning
-Village generation is currently disabled by default. Enable it by uncommenting the `minetest.register_on_generated` section in `villagers/systems/villagers.lua`.
+- **OR** just play on an Asuna server as Asuna already meets all fo the required dependencies
 
 ## Usage
 
@@ -301,11 +261,10 @@ See LICENSE file for details.
 
 ## Contributing
 
-Contributions are welcome! Please ensure:
-- Code follows existing style conventions
+Contributions from real devs are warmly welcomed! Please ensure:
+- Code follows existing style conventions (please be comment happy)
 - Test in multiple biomes
 - Document new features
-- Include translation strings
 
 ## Changelog
 
@@ -316,7 +275,11 @@ Contributions are welcome! Please ensure:
 - Enhanced NPC interaction feedback
 - Improved mood calculation and persistence
 - Added visual mood indicators with desires
-- Expanded trading system
+- Expanded trading system with villagers
+- Added Cave Wizards (but spawning Cave Castles needs refining by a pro)
+  - Wizard wands grant you new combat powers
+- Added Valkyrie and Sky Folk, who are suppressed by the Vaklyrie
+  - Save them and they will send you on a quest!
 
 ---
 
