@@ -140,6 +140,13 @@ mobs:register_mob("lualore:sky_folk", {
 
 	do_custom = function(self, dtime)
 		local success, err = pcall(function()
+			if self.liberated then
+				if lualore.sky_folk_mood then
+					lualore.sky_folk_mood.update_mood(self, dtime)
+				end
+				return
+			end
+
 			if not self.sound_timer then
 				self.sound_timer = 0
 			end
@@ -182,6 +189,12 @@ mobs:register_mob("lualore:sky_folk", {
 
 		if not success then
 			minetest.log("error", "[lualore] Sky Folk do_custom error: " .. tostring(err))
+		end
+	end,
+
+	on_die = function(self, pos)
+		if lualore.sky_folk_mood then
+			lualore.sky_folk_mood.cleanup_indicator(self)
 		end
 	end,
 })
