@@ -391,8 +391,11 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 			end
 		end
 		lualore.sky_folk_quests._open_quests[player_name] = nil
-		if lualore.sky_folk_compass then
-			lualore.sky_folk_compass.stop(player_name)
+		if lualore.sky_folk_pins then
+			lualore.sky_folk_pins.clear(player_name)
+		end
+		if lualore.sky_folk_tracker then
+			lualore.sky_folk_tracker.hide(player)
 		end
 		minetest.close_formspec(player_name, "lualore:sky_folk_quest")
 		minetest.chat_send_player(player_name,
@@ -411,18 +414,22 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 
 		local ok = player_has_quest_items(player, quest.required_items)
 		if not ok then
-			-- Accept quest but player doesn't have items yet — start compass, close form
+			-- Accept quest but player doesn't have items yet — drop a pin and show tracker icon
 			sky_folk_entity.nv_has_active_quest = true
 			lualore.sky_folk_quests._open_quests[player_name] = sky_folk_entity
 			if lualore.sky_folk_mood then
 				lualore.sky_folk_mood.update_indicator(sky_folk_entity)
 			end
-			if lualore.sky_folk_compass then
-				lualore.sky_folk_compass.start(player, sky_folk_entity)
+			local sf_pos = sky_folk_entity.object and sky_folk_entity.object:get_pos()
+			if sf_pos and lualore.sky_folk_pins then
+				lualore.sky_folk_pins.set(player, sf_pos, quest)
+			end
+			if lualore.sky_folk_tracker then
+				lualore.sky_folk_tracker.show(player)
 			end
 			minetest.close_formspec(player_name, "lualore:sky_folk_quest")
 			minetest.chat_send_player(player_name,
-				S("Quest accepted! Follow the arrow to find this Sky Folk again once you have the items."))
+				S("Quest accepted! A waypoint marks this location. Gather the items and return — use /quest to review what you need."))
 			return true
 		end
 
@@ -436,8 +443,11 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		if lualore.sky_folk_mood then
 			lualore.sky_folk_mood.update_indicator(sky_folk_entity)
 		end
-		if lualore.sky_folk_compass then
-			lualore.sky_folk_compass.stop(player_name)
+		if lualore.sky_folk_pins then
+			lualore.sky_folk_pins.clear(player_name)
+		end
+		if lualore.sky_folk_tracker then
+			lualore.sky_folk_tracker.hide(player)
 		end
 
 		minetest.close_formspec(player_name, "lualore:sky_folk_quest")
