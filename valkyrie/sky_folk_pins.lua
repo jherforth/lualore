@@ -7,11 +7,12 @@
 
 lualore.sky_folk_pins = {}
 
-local _pins    = {}          -- [player_name] = { pos, quest, hud_icon, hud_dist, hud_label }
+local _pins    = {}          -- [player_name] = { pos, quest, hud_icon, hud_dist, hud_label, set_time }
 local mod_store = minetest.get_mod_storage()
 
-local ICON_TEX   = "lualore_desire_trade.png"
-local PIN_RADIUS = 6          -- metres, close enough to "return"
+local ICON_TEX    = "lualore_desire_trade.png"
+local PIN_RADIUS  = 6     -- metres, close enough to "return"
+local PIN_GRACE   = 30    -- seconds before proximity respawn check activates
 
 --------------------------------------------------------------------
 -- Persistence helpers
@@ -105,8 +106,9 @@ function lualore.sky_folk_pins.set(player, pos, quest)
 	end
 
 	local pin = {
-		pos   = vector.new(pos.x, pos.y, pos.z),
-		quest = quest,
+		pos      = vector.new(pos.x, pos.y, pos.z),
+		quest    = quest,
+		set_time = minetest.get_gametime(),
 	}
 	_pins[pname] = pin
 	add_hud(player, pin)
@@ -167,6 +169,9 @@ minetest.register_globalstep(function(dtime)
 
 		local ppos = player:get_pos()
 		if not ppos then goto continue end
+
+		local elapsed = minetest.get_gametime() - (pin.set_time or 0)
+		if elapsed < PIN_GRACE then goto continue end
 
 		local dist = vector.distance(ppos, pin.pos)
 		if dist <= PIN_RADIUS then
