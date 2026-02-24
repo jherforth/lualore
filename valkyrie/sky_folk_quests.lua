@@ -348,6 +348,9 @@ function lualore.sky_folk_quests.show_quest_formspec(player, sky_folk_entity)
 	if lualore.sky_folk_mood then
 		lualore.sky_folk_mood.update_indicator(sky_folk_entity)
 	end
+	if lualore.sky_folk_compass then
+		lualore.sky_folk_compass.start(player, sky_folk_entity)
+	end
 end
 
 --------------------------------------------------------------------
@@ -368,6 +371,9 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 			end
 		end
 		lualore.sky_folk_quests._open_quests[player_name] = nil
+		if lualore.sky_folk_compass then
+			lualore.sky_folk_compass.stop(player_name)
+		end
 		return true
 	end
 
@@ -397,6 +403,9 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		lualore.sky_folk_quests._open_quests[player_name] = nil
 		if lualore.sky_folk_mood then
 			lualore.sky_folk_mood.update_indicator(sky_folk_entity)
+		end
+		if lualore.sky_folk_compass then
+			lualore.sky_folk_compass.stop(player_name)
 		end
 
 		minetest.chat_send_player(player_name,

@@ -135,6 +135,18 @@ function lualore.sky_liberation.serialize_sky_folk_data(self)
 		end
 	end
 
+	if self.liberated then
+		if self.sf_quest then
+			data.sf_quest = self.sf_quest
+		end
+		if self.nv_has_active_quest then
+			data.nv_has_active_quest = true
+		end
+		if self.sf_home_pos then
+			data.sf_home_pos = self.sf_home_pos
+		end
+	end
+
 	return data
 end
 
@@ -165,6 +177,16 @@ function lualore.sky_liberation.deserialize_sky_folk_data(self, data)
 
 		if lualore.sky_folk_mood then
 			lualore.sky_folk_mood.on_activate_extra(self, data)
+		end
+
+		if data.sf_quest then
+			self.sf_quest = data.sf_quest
+		end
+		if data.nv_has_active_quest then
+			self.nv_has_active_quest = true
+		end
+		if data.sf_home_pos then
+			self.sf_home_pos = data.sf_home_pos
 		end
 
 		minetest.log("action", "[lualore] Sky Folk restored as liberated")
