@@ -107,6 +107,15 @@ mobs:register_mob("lualore:sky_folk", {
 		return ""
 	end,
 
+	on_rightclick = function(self, clicker)
+		if not self.liberated then return end
+		if not clicker or not clicker:is_player() then return end
+
+		if lualore.sky_folk_quests then
+			lualore.sky_folk_quests.show_quest_formspec(clicker, self)
+		end
+	end,
+
 	on_punch = function(self, hitter, tflp, tool_capabilities, dir)
 		local pos = self.object:get_pos()
 		if pos then

@@ -76,6 +76,7 @@ dofile(modpath .. "/villagers/extras/loot.lua")
 
 -- 7. Valkyrie and Sky Folk systems
 dofile(modpath .. "/valkyrie/valkyrie_strikes.lua")
+dofile(modpath .. "/valkyrie/sky_folk_quests.lua")
 dofile(modpath .. "/valkyrie/sky_folk_mood.lua")
 dofile(modpath .. "/valkyrie/sky_liberation.lua")
 dofile(modpath .. "/valkyrie/sky_blocks.lua")

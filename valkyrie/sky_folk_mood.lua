@@ -22,6 +22,7 @@ local sky_folk_sounds = {"skyfolk1", "skyfolk2", "skyfolk3", "skyfolk4"}
 
 local trade_items = {"farming:bread", "default:feather", "default:mese_crystal_fragment"}
 
+
 lualore.sky_folk_mood.moods = {
 	happy   = {texture = "lualore_mood_happy.png"},
 	content = {texture = "lualore_mood_content.png"},
@@ -64,9 +65,14 @@ end
 
 --------------------------------------------------------------------
 -- Check for nearby trade items
+-- Prefers quest-based item detection when a quest is assigned
 --------------------------------------------------------------------
 function lualore.sky_folk_mood.check_nearby_trade_items(self)
 	if not self.object then return false end
+
+	if lualore.sky_folk_quests and self.sf_quest then
+		return lualore.sky_folk_quests.player_nearby_has_quest_item(self)
+	end
 
 	local pos = self.object:get_pos()
 	if not pos then return false end
@@ -322,7 +328,11 @@ minetest.register_entity("lualore:sky_folk_mood_indicator", {
 
 			local info = mood_name
 			if wants_trade then
-				info = mood_name .. " (wants to trade)"
+				if npc.sf_quest then
+					info = mood_name .. " (seeks: " .. npc.sf_quest.name .. ")"
+				else
+					info = mood_name .. " (wants to trade)"
+				end
 			end
 
 			self.object:set_properties({
