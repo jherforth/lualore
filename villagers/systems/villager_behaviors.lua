@@ -14,17 +14,19 @@ lualore.behaviors.config = {
 	sleep_radius = 3,
 	social_detection_radius = 5,
 	food_share_detection_radius = 8,
-	social_interaction_cooldown = 45,
+	social_interaction_cooldown = 300,  -- 5 minutes between socializations with same villager
 	food_share_cooldown = 60,
 	stuck_teleport_threshold = 300,
-	npc_seek_radius = 25,  -- Increased search radius for finding other villagers
+	npc_seek_radius = 25,
 	-- State-based behavior durations (in seconds)
-	state_wander_duration = 45,
-	state_social_duration = 90,  -- Much longer socializing time
+	state_wander_duration = 90,   -- Longer wander to give distance after socializing
+	state_social_duration = 20,   -- Short socializing burst, then wander away
 	state_rest_duration = 25,
 	-- Distance limits
 	spawn_wander_radius = 30,
 	max_distance_from_spawn = 50,
+	-- Food drop visual system
+	food_drop_duration = 2,       -- Seconds the food item sits on the ground
 }
 
 --------------------------------------------------------------------
@@ -421,6 +423,11 @@ function lualore.behaviors.find_npc_to_socialize_with(self)
 	local pos = self.object:get_pos()
 	if not pos then return nil end
 
+	local current_time = minetest.get_gametime()
+	if not self.nv_social_partner_cooldowns then
+		self.nv_social_partner_cooldowns = {}
+	end
+
 	local closest_npc = nil
 	local closest_dist = 999
 
@@ -429,7 +436,11 @@ function lualore.behaviors.find_npc_to_socialize_with(self)
 			local npc_pos = npc.object:get_pos()
 			if npc_pos then
 				local dist = vector.distance(pos, npc_pos)
-				if dist > 2 and dist < closest_dist then
+				local npc_id = tostring(npc.object)
+				local last_time = self.nv_social_partner_cooldowns[npc_id] or 0
+				local on_cooldown = (current_time - last_time) < lualore.behaviors.config.social_interaction_cooldown
+
+				if dist > 2 and dist < closest_dist and not on_cooldown then
 					closest_dist = dist
 					closest_npc = npc
 				end
@@ -446,7 +457,7 @@ function lualore.behaviors.should_socialize(self)
 	end
 
 	local current_time = minetest.get_gametime()
-	return (current_time - self.nv_last_social_time) >= lualore.behaviors.config.social_interaction_cooldown
+	return (current_time - self.nv_last_social_time) >= 10
 end
 
 function lualore.behaviors.emit_social_particles(pos1, pos2)
@@ -483,6 +494,12 @@ function lualore.behaviors.handle_social_interactions(self)
 	local pos1 = self.object:get_pos()
 	if not pos1 then return end
 
+	if not self.nv_social_partner_cooldowns then
+		self.nv_social_partner_cooldowns = {}
+	end
+
+	local current_time = minetest.get_gametime()
+
 	for _, other in ipairs(nearby) do
 		if other.object then
 			local pos2 = other.object:get_pos()
@@ -499,16 +516,29 @@ function lualore.behaviors.handle_social_interactions(self)
 					self.nv_loneliness = math.max(0, self.nv_loneliness - 15)
 				end
 
+				-- Stamp per-pair cooldown so they won't seek each other for 5 minutes
+				local other_id = tostring(other.object)
+				self.nv_social_partner_cooldowns[other_id] = current_time
+
+				-- Also stamp on the other villager so they won't come back either
+				if not other.nv_social_partner_cooldowns then
+					other.nv_social_partner_cooldowns = {}
+				end
+				other.nv_social_partner_cooldowns[tostring(self.object)] = current_time
+
 				break
 			end
 		end
 	end
 
-	self.nv_last_social_time = minetest.get_gametime()
+	self.nv_last_social_time = current_time
+
+	-- Force transition to WANDERING so villagers separate after socializing
+	lualore.behaviors.transition_state(self, lualore.behaviors.states.WANDERING)
 end
 
 --------------------------------------------------------------------
--- FOOD SHARING SYSTEM
+-- FOOD SHARING SYSTEM (Visual Drop)
 --------------------------------------------------------------------
 function lualore.behaviors.find_hungry_villager_nearby(self)
 	if not self.object then return nil end
@@ -541,32 +571,30 @@ function lualore.behaviors.should_share_food(self)
 		return false
 	end
 
+	if self.nv_food_drop_pending then
+		return false
+	end
+
 	local current_time = minetest.get_gametime()
 	return (current_time - self.nv_last_food_share_time) >= lualore.behaviors.config.food_share_cooldown
 end
 
-function lualore.behaviors.emit_food_share_particles(pos1, pos2)
-	local mid_pos = {
-		x = (pos1.x + pos2.x) / 2,
-		y = (pos1.y + pos2.y) / 2 + 1,
-		z = (pos1.z + pos2.z) / 2,
-	}
-
+function lualore.behaviors.emit_eat_particles(pos)
 	minetest.add_particlespawner({
-		amount = 64,
-		time = 1.5,
-		minpos = {x = mid_pos.x - 0.3, y = mid_pos.y, z = mid_pos.z - 0.3},
-		maxpos = {x = mid_pos.x + 0.3, y = mid_pos.y + 0.5, z = mid_pos.z + 0.3},
-		minvel = {x = 0, y = 0.3, z = 0},
-		maxvel = {x = 0, y = 0.8, z = 0},
-		minacc = {x = 0, y = 0, z = 0},
-		maxacc = {x = 0, y = 0, z = 0},
-		minexptime = 1,
-		maxexptime = 2,
-		minsize = 0.2,
-		maxsize = 0.4,
-		texture = "default_cloud.png^[colorize:blue:100",
-		glow = 3,
+		amount = 20,
+		time = 0.6,
+		minpos = {x = pos.x - 0.2, y = pos.y + 1.2, z = pos.z - 0.2},
+		maxpos = {x = pos.x + 0.2, y = pos.y + 1.5, z = pos.z + 0.2},
+		minvel = {x = -0.5, y = 0.2, z = -0.5},
+		maxvel = {x = 0.5, y = 0.8, z = 0.5},
+		minacc = {x = 0, y = -2, z = 0},
+		maxacc = {x = 0, y = -2, z = 0},
+		minexptime = 0.4,
+		maxexptime = 0.8,
+		minsize = 0.3,
+		maxsize = 0.6,
+		texture = "farming_bread.png",
+		glow = 2,
 	})
 end
 
@@ -580,20 +608,88 @@ function lualore.behaviors.handle_food_sharing(self)
 	local pos2 = hungry_villager.object:get_pos()
 	if not pos1 or not pos2 then return end
 
+	-- Cost the giver a bit of hunger
 	self.nv_hunger = math.min(100, (self.nv_hunger or 1) + 15)
-	hungry_villager.nv_hunger = math.max(1, (hungry_villager.nv_hunger or 1) - 30)
-
-	if hungry_villager.health and hungry_villager.hp_max then
-		hungry_villager.health = math.min(hungry_villager.hp_max, hungry_villager.health + 3)
-	end
-
-	lualore.behaviors.emit_food_share_particles(pos1, pos2)
-
-	if hungry_villager.nv_mood_value then
-		hungry_villager.nv_mood_value = math.min(100, (hungry_villager.nv_mood_value or 50) + 10)
-	end
-
 	self.nv_last_food_share_time = minetest.get_gametime()
+	self.nv_food_drop_pending = true
+
+	-- Drop the food item visually between the two villagers
+	local drop_pos = {
+		x = pos1.x + (pos2.x - pos1.x) * 0.4,
+		y = pos1.y + 0.5,
+		z = pos1.z + (pos2.z - pos1.z) * 0.4,
+	}
+
+	local food_obj = minetest.add_item(drop_pos, "farming:bread")
+
+	-- Freeze the hungry villager briefly so they "notice" the food
+	if hungry_villager.object then
+		hungry_villager.nv_walking_to_food = true
+		hungry_villager.nv_food_target = drop_pos
+		hungry_villager.nv_food_pickup_time = minetest.get_gametime() + lualore.behaviors.config.food_drop_duration
+	end
+
+	-- After 2 seconds: remove the item, feed the hungry villager, emit eat particles
+	minetest.after(lualore.behaviors.config.food_drop_duration, function()
+		if food_obj and food_obj:is_valid() then
+			food_obj:remove()
+		end
+
+		if hungry_villager and hungry_villager.object and hungry_villager.object:is_valid() then
+			hungry_villager.nv_hunger = math.max(1, (hungry_villager.nv_hunger or 1) - 40)
+			hungry_villager.nv_walking_to_food = nil
+			hungry_villager.nv_food_target = nil
+			hungry_villager.nv_food_pickup_time = nil
+
+			if hungry_villager.health and hungry_villager.hp_max then
+				hungry_villager.health = math.min(hungry_villager.hp_max, hungry_villager.health + 3)
+			end
+
+			if hungry_villager.nv_mood_value then
+				hungry_villager.nv_mood_value = math.min(100, (hungry_villager.nv_mood_value or 50) + 15)
+			end
+
+			local eat_pos = hungry_villager.object:get_pos()
+			if eat_pos then
+				lualore.behaviors.emit_eat_particles(eat_pos)
+			end
+
+			minetest.sound_play("default_item_smoke", {
+				pos = eat_pos or drop_pos,
+				gain = 0.4,
+				max_hear_distance = 10,
+			}, true)
+		end
+
+		if self and self.object and self.object:is_valid() then
+			self.nv_food_drop_pending = nil
+		end
+	end)
+end
+
+-- Called from the main step to walk the hungry villager toward dropped food
+function lualore.behaviors.handle_walk_to_food(self)
+	if not self.nv_walking_to_food then return false end
+	if not self.nv_food_target then return false end
+	if not self.object then return false end
+
+	local pos = self.object:get_pos()
+	if not pos then return false end
+
+	local dist = vector.distance(pos, self.nv_food_target)
+	if dist > 1.2 then
+		self._target = self.nv_food_target
+		self.state = "walk"
+		self:set_animation("walk")
+		local dir = vector.direction(pos, self.nv_food_target)
+		self.object:set_yaw(minetest.dir_to_yaw(dir))
+	else
+		self._target = nil
+		self.state = "stand"
+		self:set_animation("stand")
+	end
+
+	return true
 end
 
 --------------------------------------------------------------------
@@ -675,11 +771,11 @@ function lualore.behaviors.get_next_state(current_state)
 	if current_state == lualore.behaviors.states.WANDERING then
 		return lualore.behaviors.states.SOCIALIZING
 	elseif current_state == lualore.behaviors.states.SOCIALIZING then
-		return lualore.behaviors.states.RESTING
+		return lualore.behaviors.states.WANDERING  -- After socializing, wander away
 	elseif current_state == lualore.behaviors.states.RESTING then
-		return lualore.behaviors.states.SOCIALIZING  -- Go back to socializing instead of wandering
+		return lualore.behaviors.states.WANDERING
 	end
-	return lualore.behaviors.states.SOCIALIZING  -- Default to socializing
+	return lualore.behaviors.states.WANDERING
 end
 
 -- Transition to new state
@@ -946,6 +1042,11 @@ function lualore.behaviors.update(self, dtime)
 	-- Check if NPC is waiting for a door to open
 	if lualore.behaviors.handle_door_waiting(self) then
 		-- NPC is waiting, don't do anything else
+		return
+	end
+
+	-- Food pickup overrides all other movement
+	if lualore.behaviors.handle_walk_to_food(self) then
 		return
 	end
 
