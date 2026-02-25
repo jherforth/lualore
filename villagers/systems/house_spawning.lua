@@ -169,6 +169,8 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                     if luaent then
                         luaent.nv_house_pos = vector.new(bed_pos)
                         luaent.nv_home_radius = 20
+                        -- Set spawn position for Sky Folk
+                        luaent.nv_spawn_pos = vector.new(spawn_pos.x, spawn_pos.y, spawn_pos.z)
                     end
                     beds_with_villagers[bed_key] = true
                     processed_beds[bed_key] = true
@@ -242,6 +244,8 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                 if luaent then
                     luaent.nv_house_pos = vector.new(bed_pos)
                     luaent.nv_home_radius = 20
+                    -- Set spawn position (separate from house/bed position)
+                    luaent.nv_spawn_pos = vector.new(spawn_pos.x, spawn_pos.y, spawn_pos.z)
                 end
                 beds_with_villagers[bed_key] = true
                 processed_beds[bed_key] = true

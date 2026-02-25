@@ -16,9 +16,15 @@ lualore.behaviors.config = {
 	social_interaction_cooldown = 45,
 	food_share_cooldown = 60,
 	stuck_teleport_threshold = 300,
-	bed_detection_radius = 4,  -- How far to detect beds during daytime (reduced)
-	bed_avoidance_distance = 3,  -- Stay this far from beds during day (reduced)
-	npc_seek_radius = 15,  -- Radius to search for NPCs to socialize with during day (increased)
+	npc_seek_radius = 15,
+	-- State-based behavior durations (in seconds)
+	state_wander_duration = 60,
+	state_social_duration = 40,
+	state_rest_duration = 30,
+	state_return_duration = 20,
+	-- Distance limits
+	spawn_wander_radius = 20,
+	max_distance_from_spawn = 30,
 }
 
 --------------------------------------------------------------------
@@ -54,6 +60,16 @@ function lualore.behaviors.is_day_time()
 end
 
 --------------------------------------------------------------------
+-- STATE MACHINE DEFINITIONS
+--------------------------------------------------------------------
+lualore.behaviors.states = {
+	WANDERING = "wandering",
+	SOCIALIZING = "socializing",
+	RESTING = "resting",
+	RETURNING = "returning",
+}
+
+--------------------------------------------------------------------
 -- HOUSE POSITION MANAGEMENT
 --------------------------------------------------------------------
 function lualore.behaviors.init_house(self)
@@ -62,6 +78,21 @@ function lualore.behaviors.init_house(self)
 		self.nv_home_radius = lualore.behaviors.config.home_radius
 		self.nv_sleeping = false
 		self.nv_stuck_timer = 0
+	end
+
+	-- Initialize state machine fields
+	if not self.nv_behavior_state then
+		self.nv_behavior_state = lualore.behaviors.states.WANDERING
+		self.nv_state_timer = 0
+		self.nv_state_target_reached = false
+	end
+
+	-- Initialize spawn position (separate from bed/house)
+	if not self.nv_spawn_pos and self.object then
+		local pos = self.object:get_pos()
+		if pos then
+			self.nv_spawn_pos = vector.new(pos.x, pos.y, pos.z)
+		end
 	end
 end
 
@@ -350,63 +381,6 @@ function lualore.behaviors.flee_to_house_on_low_health(self)
 	return false
 end
 
---------------------------------------------------------------------
--- BED DETECTION & AVOIDANCE (Daytime behavior)
---------------------------------------------------------------------
-function lualore.behaviors.find_nearby_beds(self)
-	if not self.object then return {} end
-	local pos = self.object:get_pos()
-	if not pos then return {} end
-
-	local radius = lualore.behaviors.config.bed_detection_radius
-	local beds = {}
-
-	for x = -radius, radius do
-		for y = -2, 2 do
-			for z = -radius, radius do
-				local check_pos = {
-					x = math.floor(pos.x) + x,
-					y = math.floor(pos.y) + y,
-					z = math.floor(pos.z) + z
-				}
-				local node = minetest.get_node(check_pos)
-				if node and node.name and node.name:match("bed") then
-					table.insert(beds, check_pos)
-				end
-			end
-		end
-	end
-
-	return beds
-end
-
-function lualore.behaviors.get_bed_avoidance_position(self)
-	if not self.object then return nil end
-	local pos = self.object:get_pos()
-	if not pos then return nil end
-
-	local nearby_beds = lualore.behaviors.find_nearby_beds(self)
-	if #nearby_beds == 0 then return nil end
-
-	local closest_bed = nil
-	local closest_dist = 999
-
-	for _, bed_pos in ipairs(nearby_beds) do
-		local dist = vector.distance(pos, bed_pos)
-		if dist < closest_dist then
-			closest_dist = dist
-			closest_bed = bed_pos
-		end
-	end
-
-	if closest_bed and closest_dist < lualore.behaviors.config.bed_avoidance_distance then
-		local away_dir = vector.direction(closest_bed, pos)
-		local away_pos = vector.add(pos, vector.multiply(away_dir, 8))
-		return away_pos
-	end
-
-	return nil
-end
 
 --------------------------------------------------------------------
 -- SOCIAL INTERACTIONS (Villager-to-Villager)
@@ -673,7 +647,198 @@ function lualore.behaviors.check_nearby_players(self)
 end
 
 --------------------------------------------------------------------
--- DAYTIME BEHAVIOR (NPC seeking prioritized, bed avoidance secondary)
+-- STATE MACHINE BEHAVIOR HANDLERS
+--------------------------------------------------------------------
+
+-- Get duration for current state
+function lualore.behaviors.get_state_duration(state)
+	if state == lualore.behaviors.states.WANDERING then
+		return lualore.behaviors.config.state_wander_duration
+	elseif state == lualore.behaviors.states.SOCIALIZING then
+		return lualore.behaviors.config.state_social_duration
+	elseif state == lualore.behaviors.states.RESTING then
+		return lualore.behaviors.config.state_rest_duration
+	elseif state == lualore.behaviors.states.RETURNING then
+		return lualore.behaviors.config.state_return_duration
+	end
+	return 60
+end
+
+-- Get next state in cycle
+function lualore.behaviors.get_next_state(current_state)
+	if current_state == lualore.behaviors.states.WANDERING then
+		return lualore.behaviors.states.SOCIALIZING
+	elseif current_state == lualore.behaviors.states.SOCIALIZING then
+		return lualore.behaviors.states.RESTING
+	elseif current_state == lualore.behaviors.states.RESTING then
+		return lualore.behaviors.states.RETURNING
+	elseif current_state == lualore.behaviors.states.RETURNING then
+		return lualore.behaviors.states.WANDERING
+	end
+	return lualore.behaviors.states.WANDERING
+end
+
+-- Transition to new state
+function lualore.behaviors.transition_state(self, new_state)
+	self.nv_behavior_state = new_state
+	self.nv_state_timer = 0
+	self.nv_state_target_reached = false
+	self._target = nil
+	self.state = "stand"
+end
+
+-- WANDERING STATE: Free roam with natural movement
+function lualore.behaviors.handle_wandering_state(self)
+	if not self.object then return false end
+
+	-- Clear any forced targets to allow natural mobs_redo wandering
+	if self._target then
+		self._target = nil
+	end
+
+	return false
+end
+
+-- SOCIALIZING STATE: Seek nearby villagers
+function lualore.behaviors.handle_socializing_state(self)
+	if not self.object then return false end
+	local pos = self.object:get_pos()
+	if not pos then return false end
+
+	-- If we've reached our social target, just stand and socialize
+	if self.nv_state_target_reached then
+		self.state = "stand"
+		self:set_animation("stand")
+		return true
+	end
+
+	-- Look for nearby villagers
+	local target_npc = lualore.behaviors.find_npc_to_socialize_with(self)
+	if target_npc and target_npc.object then
+		local npc_pos = target_npc.object:get_pos()
+		if npc_pos then
+			local dist = vector.distance(pos, npc_pos)
+
+			-- If close enough, mark target reached and stand
+			if dist <= 4 then
+				self.nv_state_target_reached = true
+				self._target = nil
+				self.state = "stand"
+				self:set_animation("stand")
+				return true
+			end
+
+			-- Move towards the villager
+			if dist > 4 then
+				-- Check for doors in path
+				if not self.nv_waiting_for_door then
+					local door_pos = lualore.behaviors.find_nearest_door_to_target(self, npc_pos)
+					if door_pos then
+						self.nv_final_destination = npc_pos
+						self._target = door_pos
+						self.state = "walk"
+						self:set_animation("walk")
+						local dir = vector.direction(pos, door_pos)
+						local yaw = minetest.dir_to_yaw(dir)
+						self.object:set_yaw(yaw)
+						return true
+					end
+				end
+
+				self._target = npc_pos
+				self.state = "walk"
+				self:set_animation("walk")
+				local dir = vector.direction(pos, npc_pos)
+				local yaw = minetest.dir_to_yaw(dir)
+				self.object:set_yaw(yaw)
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
+-- RESTING STATE: Stand still or minimal movement
+function lualore.behaviors.handle_resting_state(self)
+	if not self.object then return false end
+
+	-- Clear targets and just stand
+	self._target = nil
+	self.state = "stand"
+	self:set_animation("stand")
+
+	return true
+end
+
+-- RETURNING STATE: Move back towards spawn point
+function lualore.behaviors.handle_returning_state(self)
+	if not self.object then return false end
+	if not self.nv_spawn_pos then return false end
+
+	local pos = self.object:get_pos()
+	if not pos then return false end
+
+	local spawn_pos = self.nv_spawn_pos
+	local dist = vector.distance(pos, spawn_pos)
+
+	-- If close enough to spawn, mark target reached
+	if dist <= 5 then
+		self.nv_state_target_reached = true
+		self._target = nil
+		self.state = "stand"
+		self:set_animation("stand")
+		return true
+	end
+
+	-- Move towards spawn point
+	if not self.nv_state_target_reached then
+		-- Check for doors in path
+		if not self.nv_waiting_for_door then
+			local door_pos = lualore.behaviors.find_nearest_door_to_target(self, spawn_pos)
+			if door_pos then
+				self.nv_final_destination = spawn_pos
+				self._target = door_pos
+				self.state = "walk"
+				self:set_animation("walk")
+				local dir = vector.direction(pos, door_pos)
+				local yaw = minetest.dir_to_yaw(dir)
+				self.object:set_yaw(yaw)
+				return true
+			end
+		end
+
+		self._target = spawn_pos
+		self.state = "walk"
+		self:set_animation("walk")
+		local dir = vector.direction(pos, spawn_pos)
+		local yaw = minetest.dir_to_yaw(dir)
+		self.object:set_yaw(yaw)
+		return true
+	end
+
+	return false
+end
+
+-- Main state handler dispatcher
+function lualore.behaviors.handle_state_behavior(self)
+	local state = self.nv_behavior_state or lualore.behaviors.states.WANDERING
+
+	if state == lualore.behaviors.states.WANDERING then
+		return lualore.behaviors.handle_wandering_state(self)
+	elseif state == lualore.behaviors.states.SOCIALIZING then
+		return lualore.behaviors.handle_socializing_state(self)
+	elseif state == lualore.behaviors.states.RESTING then
+		return lualore.behaviors.handle_resting_state(self)
+	elseif state == lualore.behaviors.states.RETURNING then
+		return lualore.behaviors.handle_returning_state(self)
+	end
+
+	return false
+end
+
+--------------------------------------------------------------------
+-- DAYTIME BEHAVIOR (State-based system)
 --------------------------------------------------------------------
 function lualore.behaviors.handle_daytime_movement(self)
 	if not lualore.behaviors.is_day_time() then
@@ -705,73 +870,8 @@ function lualore.behaviors.handle_daytime_movement(self)
 		end
 	end
 
-	-- PRIORITY 1: Look for other NPCs to socialize with (increased chance to 60%)
-	if math.random() < 0.6 then
-		local target_npc = lualore.behaviors.find_npc_to_socialize_with(self)
-		if target_npc and target_npc.object then
-			local npc_pos = target_npc.object:get_pos()
-			if npc_pos then
-				local dist = vector.distance(pos, npc_pos)
-				if dist > 3 then
-					-- Check for doors in path to NPC
-					if not self.nv_waiting_for_door then
-						local door_pos = lualore.behaviors.find_nearest_door_to_target(self, npc_pos)
-						if door_pos then
-							self.nv_final_destination = npc_pos
-							self._target = door_pos
-							self.state = "walk"
-							self:set_animation("walk")
-
-							local dir = vector.direction(pos, door_pos)
-							local yaw = minetest.dir_to_yaw(dir)
-							self.object:set_yaw(yaw)
-							return true
-						end
-					end
-
-					self._target = npc_pos
-					self.state = "walk"
-					self:set_animation("walk")
-
-					local dir = vector.direction(pos, npc_pos)
-					local yaw = minetest.dir_to_yaw(dir)
-					self.object:set_yaw(yaw)
-					return true
-				end
-			end
-		end
-	end
-
-	-- PRIORITY 2: Avoid beds only if too close (reduced priority)
-	local avoid_pos = lualore.behaviors.get_bed_avoidance_position(self)
-	if avoid_pos then
-		-- Check for doors in path to avoid position
-		if not self.nv_waiting_for_door then
-			local door_pos = lualore.behaviors.find_nearest_door_to_target(self, avoid_pos)
-			if door_pos then
-				self.nv_final_destination = avoid_pos
-				self._target = door_pos
-				self.state = "walk"
-				self:set_animation("walk")
-
-				local dir = vector.direction(pos, door_pos)
-				local yaw = minetest.dir_to_yaw(dir)
-				self.object:set_yaw(yaw)
-				return true
-			end
-		end
-
-		self._target = avoid_pos
-		self.state = "walk"
-		self:set_animation("walk")
-
-		local dir = vector.direction(pos, avoid_pos)
-		local yaw = minetest.dir_to_yaw(dir)
-		self.object:set_yaw(yaw)
-		return true
-	end
-
-	return false
+	-- Handle current state behavior
+	return lualore.behaviors.handle_state_behavior(self)
 end
 
 --------------------------------------------------------------------
@@ -904,11 +1004,25 @@ function lualore.behaviors.update(self, dtime)
 		return
 	end
 
+	-- Night time overrides all state behavior
 	if lualore.behaviors.is_night_time() then
 		if lualore.behaviors.handle_night_time_movement_with_avoidance(self) then
 			return
 		end
 	else
+		-- Daytime: Update state timer and handle transitions
+		self.nv_state_timer = (self.nv_state_timer or 0) + dtime
+
+		local current_state = self.nv_behavior_state or lualore.behaviors.states.WANDERING
+		local state_duration = lualore.behaviors.get_state_duration(current_state)
+
+		-- Check if it's time to transition to next state
+		if self.nv_state_timer >= state_duration then
+			local next_state = lualore.behaviors.get_next_state(current_state)
+			lualore.behaviors.transition_state(self, next_state)
+		end
+
+		-- Handle daytime movement with state-based behavior
 		if lualore.behaviors.handle_daytime_movement(self) then
 			return
 		end
@@ -951,6 +1065,11 @@ function lualore.behaviors.get_save_data(self)
 		nv_waiting_for_door = self.nv_waiting_for_door,
 		nv_door_wait_start = self.nv_door_wait_start,
 		nv_waiting_door_pos = self.nv_waiting_door_pos,
+		-- State machine data
+		nv_behavior_state = self.nv_behavior_state,
+		nv_state_timer = self.nv_state_timer,
+		nv_state_target_reached = self.nv_state_target_reached,
+		nv_spawn_pos = self.nv_spawn_pos,
 	}
 end
 
@@ -968,6 +1087,11 @@ function lualore.behaviors.load_save_data(self, data)
 	self.nv_waiting_for_door = data.nv_waiting_for_door or false
 	self.nv_door_wait_start = data.nv_door_wait_start or 0
 	self.nv_waiting_door_pos = data.nv_waiting_door_pos
+	-- State machine data
+	self.nv_behavior_state = data.nv_behavior_state or lualore.behaviors.states.WANDERING
+	self.nv_state_timer = data.nv_state_timer or 0
+	self.nv_state_target_reached = data.nv_state_target_reached or false
+	self.nv_spawn_pos = data.nv_spawn_pos
 end
 
 print(S("[MOD] Native Villages - Enhanced villager behaviors loaded"))
