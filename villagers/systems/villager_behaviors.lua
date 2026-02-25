@@ -9,21 +9,22 @@ lualore.behaviors = {}
 -- CONFIGURATION
 --------------------------------------------------------------------
 lualore.behaviors.config = {
-	home_radius = 20,
+	home_radius = 5,  -- Night time radius (close to bed)
+	daytime_home_radius = 30,  -- Day time radius (larger roaming area)
 	sleep_radius = 3,
 	social_detection_radius = 5,
 	food_share_detection_radius = 8,
 	social_interaction_cooldown = 45,
 	food_share_cooldown = 60,
 	stuck_teleport_threshold = 300,
-	npc_seek_radius = 20,  -- Increased search radius
+	npc_seek_radius = 25,  -- Increased search radius for finding other villagers
 	-- State-based behavior durations (in seconds)
 	state_wander_duration = 45,
 	state_social_duration = 90,  -- Much longer socializing time
 	state_rest_duration = 25,
 	-- Distance limits
-	spawn_wander_radius = 25,
-	max_distance_from_spawn = 40,
+	spawn_wander_radius = 30,
+	max_distance_from_spawn = 50,
 }
 
 --------------------------------------------------------------------
@@ -284,14 +285,21 @@ end
 --------------------------------------------------------------------
 function lualore.behaviors.get_activity_radius(self)
 	local period = lualore.behaviors.get_time_period()
-	local base_radius = self.nv_home_radius or lualore.behaviors.config.home_radius
+
+	-- Use different base radius for day vs night
+	local base_radius
+	if period == "night" then
+		base_radius = lualore.behaviors.config.home_radius  -- 5 blocks at night
+	else
+		base_radius = lualore.behaviors.config.daytime_home_radius  -- 30 blocks during day
+	end
 
 	if period == "morning" then
-		return base_radius * 0.5
+		return base_radius * 0.8
 	elseif period == "afternoon" then
-		return base_radius * 1.2
+		return base_radius * 1.0
 	elseif period == "evening" then
-		return base_radius * 0.7
+		return base_radius * 0.9
 	else
 		return lualore.behaviors.config.sleep_radius
 	end
