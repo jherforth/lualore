@@ -4,7 +4,7 @@ lualore.floating_buildings = {}
 
 local sky_fortress_noise = {
 	offset = 0,
-	scale = 0.0005,
+	scale = 0.0009,
 	spread = {x = 600, y = 600, z = 600},
 	seed = 98534,
 	octaves = 3,
