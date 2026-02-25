@@ -16,15 +16,14 @@ lualore.behaviors.config = {
 	social_interaction_cooldown = 45,
 	food_share_cooldown = 60,
 	stuck_teleport_threshold = 300,
-	npc_seek_radius = 15,
+	npc_seek_radius = 20,  -- Increased search radius
 	-- State-based behavior durations (in seconds)
-	state_wander_duration = 60,
-	state_social_duration = 40,
-	state_rest_duration = 30,
-	state_return_duration = 20,
+	state_wander_duration = 45,
+	state_social_duration = 90,  -- Much longer socializing time
+	state_rest_duration = 25,
 	-- Distance limits
-	spawn_wander_radius = 20,
-	max_distance_from_spawn = 30,
+	spawn_wander_radius = 25,
+	max_distance_from_spawn = 40,
 }
 
 --------------------------------------------------------------------
@@ -52,7 +51,9 @@ end
 
 function lualore.behaviors.is_night_time()
 	local tod = lualore.behaviors.get_time_of_day()
-	return (tod < 0.25 or tod >= 0.75)
+	-- 10PM = 0.9167, 6AM = 0.25
+	-- Night time is from 10PM (0.9167) to 6AM (0.25)
+	return (tod >= 0.9167 or tod < 0.25)
 end
 
 function lualore.behaviors.is_day_time()
@@ -66,7 +67,6 @@ lualore.behaviors.states = {
 	WANDERING = "wandering",
 	SOCIALIZING = "socializing",
 	RESTING = "resting",
-	RETURNING = "returning",
 }
 
 --------------------------------------------------------------------
@@ -82,7 +82,7 @@ function lualore.behaviors.init_house(self)
 
 	-- Initialize state machine fields
 	if not self.nv_behavior_state then
-		self.nv_behavior_state = lualore.behaviors.states.WANDERING
+		self.nv_behavior_state = lualore.behaviors.states.SOCIALIZING  -- Start in socializing mode
 		self.nv_state_timer = 0
 		self.nv_state_target_reached = false
 	end
@@ -658,24 +658,20 @@ function lualore.behaviors.get_state_duration(state)
 		return lualore.behaviors.config.state_social_duration
 	elseif state == lualore.behaviors.states.RESTING then
 		return lualore.behaviors.config.state_rest_duration
-	elseif state == lualore.behaviors.states.RETURNING then
-		return lualore.behaviors.config.state_return_duration
 	end
 	return 60
 end
 
--- Get next state in cycle
+-- Get next state in cycle (daytime only cycles through 3 states)
 function lualore.behaviors.get_next_state(current_state)
 	if current_state == lualore.behaviors.states.WANDERING then
 		return lualore.behaviors.states.SOCIALIZING
 	elseif current_state == lualore.behaviors.states.SOCIALIZING then
 		return lualore.behaviors.states.RESTING
 	elseif current_state == lualore.behaviors.states.RESTING then
-		return lualore.behaviors.states.RETURNING
-	elseif current_state == lualore.behaviors.states.RETURNING then
-		return lualore.behaviors.states.WANDERING
+		return lualore.behaviors.states.SOCIALIZING  -- Go back to socializing instead of wandering
 	end
-	return lualore.behaviors.states.WANDERING
+	return lualore.behaviors.states.SOCIALIZING  -- Default to socializing
 end
 
 -- Transition to new state
@@ -699,63 +695,55 @@ function lualore.behaviors.handle_wandering_state(self)
 	return false
 end
 
--- SOCIALIZING STATE: Seek nearby villagers
+-- SOCIALIZING STATE: Seek nearby villagers (aggressive version)
 function lualore.behaviors.handle_socializing_state(self)
 	if not self.object then return false end
 	local pos = self.object:get_pos()
 	if not pos then return false end
 
-	-- If we've reached our social target, just stand and socialize
-	if self.nv_state_target_reached then
-		self.state = "stand"
-		self:set_animation("stand")
-		return true
-	end
-
-	-- Look for nearby villagers
+	-- Look for nearby villagers - continuously update target, not just once
 	local target_npc = lualore.behaviors.find_npc_to_socialize_with(self)
 	if target_npc and target_npc.object then
 		local npc_pos = target_npc.object:get_pos()
 		if npc_pos then
 			local dist = vector.distance(pos, npc_pos)
 
-			-- If close enough, mark target reached and stand
-			if dist <= 4 then
-				self.nv_state_target_reached = true
+			-- If very close, stand and socialize
+			if dist <= 3 then
 				self._target = nil
 				self.state = "stand"
 				self:set_animation("stand")
 				return true
 			end
 
-			-- Move towards the villager
-			if dist > 4 then
-				-- Check for doors in path
-				if not self.nv_waiting_for_door then
-					local door_pos = lualore.behaviors.find_nearest_door_to_target(self, npc_pos)
-					if door_pos then
-						self.nv_final_destination = npc_pos
-						self._target = door_pos
-						self.state = "walk"
-						self:set_animation("walk")
-						local dir = vector.direction(pos, door_pos)
-						local yaw = minetest.dir_to_yaw(dir)
-						self.object:set_yaw(yaw)
-						return true
-					end
+			-- Move towards the villager - always update target
+			-- Check for doors in path
+			if not self.nv_waiting_for_door then
+				local door_pos = lualore.behaviors.find_nearest_door_to_target(self, npc_pos)
+				if door_pos then
+					self.nv_final_destination = npc_pos
+					self._target = door_pos
+					self.state = "walk"
+					self:set_animation("walk")
+					local dir = vector.direction(pos, door_pos)
+					local yaw = minetest.dir_to_yaw(dir)
+					self.object:set_yaw(yaw)
+					return true
 				end
-
-				self._target = npc_pos
-				self.state = "walk"
-				self:set_animation("walk")
-				local dir = vector.direction(pos, npc_pos)
-				local yaw = minetest.dir_to_yaw(dir)
-				self.object:set_yaw(yaw)
-				return true
 			end
+
+			self._target = npc_pos
+			self.state = "walk"
+			self:set_animation("walk")
+			local dir = vector.direction(pos, npc_pos)
+			local yaw = minetest.dir_to_yaw(dir)
+			self.object:set_yaw(yaw)
+			return true
 		end
 	end
 
+	-- No villagers nearby, just wander
+	self._target = nil
 	return false
 end
 
@@ -771,58 +759,9 @@ function lualore.behaviors.handle_resting_state(self)
 	return true
 end
 
--- RETURNING STATE: Move back towards spawn point
-function lualore.behaviors.handle_returning_state(self)
-	if not self.object then return false end
-	if not self.nv_spawn_pos then return false end
-
-	local pos = self.object:get_pos()
-	if not pos then return false end
-
-	local spawn_pos = self.nv_spawn_pos
-	local dist = vector.distance(pos, spawn_pos)
-
-	-- If close enough to spawn, mark target reached
-	if dist <= 5 then
-		self.nv_state_target_reached = true
-		self._target = nil
-		self.state = "stand"
-		self:set_animation("stand")
-		return true
-	end
-
-	-- Move towards spawn point
-	if not self.nv_state_target_reached then
-		-- Check for doors in path
-		if not self.nv_waiting_for_door then
-			local door_pos = lualore.behaviors.find_nearest_door_to_target(self, spawn_pos)
-			if door_pos then
-				self.nv_final_destination = spawn_pos
-				self._target = door_pos
-				self.state = "walk"
-				self:set_animation("walk")
-				local dir = vector.direction(pos, door_pos)
-				local yaw = minetest.dir_to_yaw(dir)
-				self.object:set_yaw(yaw)
-				return true
-			end
-		end
-
-		self._target = spawn_pos
-		self.state = "walk"
-		self:set_animation("walk")
-		local dir = vector.direction(pos, spawn_pos)
-		local yaw = minetest.dir_to_yaw(dir)
-		self.object:set_yaw(yaw)
-		return true
-	end
-
-	return false
-end
-
 -- Main state handler dispatcher
 function lualore.behaviors.handle_state_behavior(self)
-	local state = self.nv_behavior_state or lualore.behaviors.states.WANDERING
+	local state = self.nv_behavior_state or lualore.behaviors.states.SOCIALIZING
 
 	if state == lualore.behaviors.states.WANDERING then
 		return lualore.behaviors.handle_wandering_state(self)
@@ -830,8 +769,6 @@ function lualore.behaviors.handle_state_behavior(self)
 		return lualore.behaviors.handle_socializing_state(self)
 	elseif state == lualore.behaviors.states.RESTING then
 		return lualore.behaviors.handle_resting_state(self)
-	elseif state == lualore.behaviors.states.RETURNING then
-		return lualore.behaviors.handle_returning_state(self)
 	end
 
 	return false
@@ -1088,7 +1025,7 @@ function lualore.behaviors.load_save_data(self, data)
 	self.nv_door_wait_start = data.nv_door_wait_start or 0
 	self.nv_waiting_door_pos = data.nv_waiting_door_pos
 	-- State machine data
-	self.nv_behavior_state = data.nv_behavior_state or lualore.behaviors.states.WANDERING
+	self.nv_behavior_state = data.nv_behavior_state or lualore.behaviors.states.SOCIALIZING
 	self.nv_state_timer = data.nv_state_timer or 0
 	self.nv_state_target_reached = data.nv_state_target_reached or false
 	self.nv_spawn_pos = data.nv_spawn_pos
