@@ -8,21 +8,68 @@ local DAY_END        = 0.9167  -- 10PM
 local CHECK_INTERVAL = 10      -- Globalstep poll interval in seconds
 
 --------------------------------------------------------------------
--- HELPER FUNCTIONS
+-- DOOR TRANSFORM TABLE (mirrors doors mod exactly)
+-- state 0 = closed left-hinge  (_a)
+-- state 1 = open   left-hinge  (_a, different param2)
+-- state 2 = closed right-hinge (_b)
+-- state 3 = open   right-hinge (_b, different param2)
 --------------------------------------------------------------------
+
+local door_transform = {
+	[0] = { {v = "_a", p2 = 3}, {v = "_a", p2 = 0}, {v = "_a", p2 = 1}, {v = "_a", p2 = 2} },
+	[1] = { {v = "_c", p2 = 1}, {v = "_c", p2 = 2}, {v = "_c", p2 = 3}, {v = "_c", p2 = 0} },
+	[2] = { {v = "_b", p2 = 1}, {v = "_b", p2 = 2}, {v = "_b", p2 = 3}, {v = "_b", p2 = 0} },
+	[3] = { {v = "_d", p2 = 3}, {v = "_d", p2 = 0}, {v = "_d", p2 = 1}, {v = "_d", p2 = 2} },
+}
+
+-- Suffix-to-state map so we can identify a door's current state from node name alone
+local suffix_to_state = { _a = 0, _c = 1, _b = 2, _d = 3 }
+
+local function get_door_base_and_state(node_name)
+	local base, suffix = node_name:match("^(doors:door_.-)(_[abcd])$")
+	if base and suffix and suffix_to_state[suffix] then
+		return base, suffix_to_state[suffix]
+	end
+	return nil, nil
+end
 
 local function is_daytime()
 	local tod = minetest.get_timeofday()
 	return tod >= DAY_START and tod < DAY_END
 end
 
-local function is_door_open(pos)
-	local state = minetest.get_meta(pos):get_int("state")
-	return state % 2 == 1
-end
+--------------------------------------------------------------------
+-- TOGGLE A SINGLE DOOR
+--------------------------------------------------------------------
 
-local function is_registered_door(node_name)
-	return doors and doors.registered_doors and doors.registered_doors[node_name]
+local function toggle_door(pos, node, want_open)
+	local base, state = get_door_base_and_state(node.name)
+	if not base then return end
+
+	local currently_open = (state % 2 == 1)
+	if currently_open == want_open then return end
+
+	-- Determine new state
+	local new_state = want_open and (state + 1) or (state - 1)
+
+	local dir = node.param2
+	local t = door_transform[new_state]
+	if not t or not t[dir + 1] then return end
+
+	local entry = t[dir + 1]
+	local new_name = base .. entry.v
+
+	if not minetest.registered_nodes[new_name] then return end
+
+	local sound_def = minetest.registered_nodes[new_name]
+	if want_open and sound_def.sound_open then
+		minetest.sound_play(sound_def.sound_open, {pos = pos, gain = 0.3, max_hear_distance = 10})
+	elseif not want_open and sound_def.sound_close then
+		minetest.sound_play(sound_def.sound_close, {pos = pos, gain = 0.3, max_hear_distance = 10})
+	end
+
+	minetest.swap_node(pos, {name = new_name, param1 = node.param1, param2 = entry.p2})
+	minetest.get_meta(pos):set_int("state", new_state)
 end
 
 --------------------------------------------------------------------
@@ -44,13 +91,8 @@ local function update_doors_near_players(want_open)
 			if not visited[key] then
 				visited[key] = true
 				local node = minetest.get_node(pos)
-				if is_registered_door(node.name) then
-					local currently_open = is_door_open(pos)
-					if want_open and not currently_open then
-						doors.door_toggle(pos, node, nil)
-					elseif not want_open and currently_open then
-						doors.door_toggle(pos, node, nil)
-					end
+				if node.name ~= "doors:hidden" then
+					toggle_door(pos, node, want_open)
 				end
 			end
 		end
