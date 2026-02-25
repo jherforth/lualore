@@ -1,6 +1,6 @@
 # Lua Lore
 
-A villager and lore mod for Luanti (formerly Minetest) that adds living villages across multiple biomes with NPCs that have moods, trades, and unique behaviors. Explore floating sky cities, discover underground wizard castles, and interact with diverse communities.
+A villager and lore mod for Luanti that adds living villages across multiple biomes with NPCs that have moods, trades, and unique behaviors. Explore floating sky cities, discover underground wizard castles, and interact with diverse communities.
 
 ## Features
 
@@ -80,7 +80,7 @@ Village doors automatically open when NPCs approach and close after they pass th
 - **mobs** (mobs_redo), **default**, **farming**, **3d_armour** - Required
 - **caverealms**, **everness**, **ethereal** - Required for biome support
 - **intllib** - Optional (for translations)
-- **OR** play on an Asuna server which includes all dependencies
+- **OR** play on an **Asuna**, which includes all dependencies
 
 ## Usage
 
@@ -88,73 +88,6 @@ Village doors automatically open when NPCs approach and close after they pass th
 - **Right-click + Sneak** - Trade with held item
 - **Right-click with food** - Feed villagers
 - Some villagers can be tamed and will follow you
-
-## File Structure
-
-```
-lualore/
-├── init.lua                          # Main mod initialization
-├── mod.conf                          # Mod metadata and dependencies
-├── intllib.lua                       # Internationalization support
-├── villagers/                        # Villager and village systems
-│   ├── HOW_TO_MODIFY_TRADES.md      # Trading documentation
-│   ├── REPOPULATE_VILLAGERS.md      # Spawning guide
-│   ├── blocks/                       # Biome-specific decorative blocks
-│   │   ├── arcticblocks.lua
-│   │   ├── desertblocks.lua
-│   │   ├── grasslandblocks.lua
-│   │   ├── jungleblocks.lua
-│   │   ├── lakeblocks.lua
-│   │   └── savannablocks.lua
-│   ├── buildings/                    # Biome-specific structures
-│   │   ├── desertbuildings.lua
-│   │   ├── grasslandbuildings.lua
-│   │   ├── icebuildings.lua
-│   │   ├── junglebuildings.lua
-│   │   ├── lakebuildings.lua
-│   │   └── savannabuildings.lua
-│   ├── systems/                      # Core systems
-│   │   ├── house_spawning.lua       # Villager spawning
-│   │   ├── npcmood.lua              # Mood and emotions
-│   │   ├── smart_doors.lua          # Automatic doors
-│   │   ├── village_commands.lua     # Admin commands
-│   │   ├── village_noise.lua        # Generation settings
-│   │   ├── villager_behaviors.lua   # AI and interactions
-│   │   ├── villagers.lua            # Villager definitions
-│   │   └── witch_magic.lua          # Witch abilities
-│   └── extras/                       # Additional content
-│       ├── explodingtoad.lua
-│       └── loot.lua
-├── wizards/                          # Underground wizard system
-│   ├── WIZARD_SYSTEM.md
-│   ├── cave_wizards.lua             # Wizard entities
-│   ├── cavebuildings.lua            # Cave castles
-│   ├── wizard_magic.lua             # Wizard abilities
-│   └── wizard_wands.lua             # Magical wands
-├── valkyrie/                         # Sky realm system
-│   ├── CHANGELOG.md
-│   ├── LIBERATION_SYSTEM.md
-│   ├── SKY_FOLK.md
-│   ├── TESTING_GUIDE.md
-│   ├── VALKYRIE_SYSTEM.md
-│   ├── floating_buildings.lua       # Sky structures
-│   ├── sky_blocks.lua               # Sky materials
-│   ├── sky_folk.lua                 # Sky folk entities
-│   ├── sky_folk_compass.lua         # Navigation tool
-│   ├── sky_folk_mood.lua            # Sky folk emotions
-│   ├── sky_folk_pins.lua            # Location markers
-│   ├── sky_folk_quests.lua          # Quest system
-│   ├── sky_folk_tracker.lua         # Liberation tracking
-│   ├── sky_liberation.lua           # Liberation mechanics
-│   ├── sky_valkyries.lua            # Valkyrie entities
-│   ├── sky_villages.lua             # Sky village generation
-│   ├── valkyrie_chest.lua           # Reward system
-│   └── valkyrie_strikes.lua         # Combat system
-├── models/                           # 3D models (.b3d, .obj)
-├── textures/                         # Textures and sprites
-├── sounds/                           # Sound effects (.ogg)
-└── schematics/                       # Building schematics (.mts)
-```
 
 ## Credits
 
@@ -175,4 +108,6 @@ Contributions are welcome! Please follow existing code conventions, test in mult
 
 ---
 
-**Note**: This mod is designed for Luanti (formerly Minetest).
+**Personal Note**: Why was this created? The short story is that I have three adopted children who came to me obsessed with MCraft. I host my own services at home and came across Luanti, and instantly saw the vast potential for endless adventures. I wanted to avoid an outright clone, or outright familiar experience, so we landed on Asuna, which is an awesome blank slate to really build the world you desire. We craved something beyond adding in hostile mobs (which we did, and love what the community has built), and something a bit more than just some random villages. What I hope this mod does is inspire the building of lore for Luanti's games. I'd love to see the community embrace, or add, Lore Jams, and not just the neat Game Jams that everyone looks forward too. The community has really built something awesome, and I think creating more wonder and lore for users to install and interact with will really add a sense of wonder and curiosity to one of the best open world experiences that exists.
+
+**Acknowledgement**: This game was built on the Bolt.new/Bolt.diy platform using Claude Code. AI is a fantastic tool to help unlock the ideas of those who lack the ability, bring those ideas to life. It certainly helps to have some technical and coding background, as it helps you "speak dev" in a more efficient way with AI. 
