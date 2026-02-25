@@ -294,7 +294,6 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 		lava_damage = 2,
 		light_damage = 0,
 		follow = {},
-		stay_near = {biome_config.stay_near, 5},
 		view_range = 15,
 		owner = "",
 		order = "follow",

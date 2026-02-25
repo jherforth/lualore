@@ -156,8 +156,45 @@ mobs:register_mob("lualore:sky_folk", {
 
 				local pos = self.object:get_pos()
 				if pos then
+					-- Initialize spawn position (home base for wandering)
+					if not self.nv_spawn_pos then
+						self.nv_spawn_pos = vector.new(pos.x, pos.y, pos.z)
+					end
+
 					if not self.sf_home_pos then
 						self.sf_home_pos = vector.new(pos.x, pos.y, pos.z)
+					end
+
+					-- Initialize state machine
+					if not self.sf_behavior_state then
+						self.sf_behavior_state = "wandering"
+						self.sf_state_timer = 0
+						self.sf_target_reached = false
+					end
+
+					-- Update state timer
+					self.sf_state_timer = (self.sf_state_timer or 0) + dtime
+
+					-- State durations
+					local state_durations = {
+						wandering = 50,
+						socializing = 40,
+						observing = 30,
+					}
+
+					-- Check for state transition
+					local current_duration = state_durations[self.sf_behavior_state] or 50
+					if self.sf_state_timer >= current_duration then
+						-- Cycle to next state
+						if self.sf_behavior_state == "wandering" then
+							self.sf_behavior_state = "socializing"
+						elseif self.sf_behavior_state == "socializing" then
+							self.sf_behavior_state = "observing"
+						else
+							self.sf_behavior_state = "wandering"
+						end
+						self.sf_state_timer = 0
+						self.sf_target_reached = false
 					end
 
 					local function has_ground_below(check_pos)
@@ -175,6 +212,50 @@ mobs:register_mob("lualore:sky_folk", {
 						return count
 					end
 
+					-- Handle state-specific behavior
+					if self.sf_behavior_state == "socializing" and not self.sf_target_reached then
+						-- Look for nearby Sky Folk
+						local nearby_objects = minetest.get_objects_inside_radius(pos, 15)
+						local closest_sky_folk = nil
+						local closest_dist = 999
+
+						for _, obj in ipairs(nearby_objects) do
+							if obj ~= self.object then
+								local ent = obj:get_luaentity()
+								if ent and ent.name == "lualore:sky_folk" and ent.liberated then
+									local other_pos = obj:get_pos()
+									if other_pos then
+										local dist = vector.distance(pos, other_pos)
+										if dist > 3 and dist < closest_dist then
+											closest_dist = dist
+											closest_sky_folk = other_pos
+										end
+									end
+								end
+							end
+						end
+
+						-- Move towards other Sky Folk
+						if closest_sky_folk then
+							if closest_dist <= 4 then
+								-- Close enough, stop moving
+								self.sf_target_reached = true
+								self.object:set_velocity({x = 0, y = self.object:get_velocity().y, z = 0})
+							else
+								local dir = vector.direction(pos, closest_sky_folk)
+								self.object:set_velocity({
+									x = dir.x * 1.5,
+									y = self.object:get_velocity().y,
+									z = dir.z * 1.5,
+								})
+							end
+						end
+					elseif self.sf_behavior_state == "observing" then
+						-- Stand still
+						self.object:set_velocity({x = 0, y = self.object:get_velocity().y, z = 0})
+					end
+
+					-- Edge avoidance (always active)
 					local vel = self.object:get_velocity()
 					if vel and (math.abs(vel.x) > 0.1 or math.abs(vel.z) > 0.1) then
 						local move_dir = vector.normalize({x = vel.x, y = 0, z = vel.z})

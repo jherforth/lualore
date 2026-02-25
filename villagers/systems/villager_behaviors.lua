@@ -9,16 +9,24 @@ lualore.behaviors = {}
 -- CONFIGURATION
 --------------------------------------------------------------------
 lualore.behaviors.config = {
-	home_radius = 20,
+	home_radius = 5,  -- Night time radius (close to bed)
+	daytime_home_radius = 30,  -- Day time radius (larger roaming area)
 	sleep_radius = 3,
 	social_detection_radius = 5,
 	food_share_detection_radius = 8,
-	social_interaction_cooldown = 45,
+	social_interaction_cooldown = 300,  -- 5 minutes between socializations with same villager
 	food_share_cooldown = 60,
 	stuck_teleport_threshold = 300,
-	bed_detection_radius = 8,  -- How far to detect beds during daytime
-	bed_avoidance_distance = 6,  -- Stay this far from beds during day
-	npc_seek_radius = 10,  -- Radius to search for NPCs to socialize with during day
+	npc_seek_radius = 25,
+	-- State-based behavior durations (in seconds)
+	state_wander_duration = 90,   -- Longer wander to give distance after socializing
+	state_social_duration = 20,   -- Short socializing burst, then wander away
+	state_rest_duration = 25,
+	-- Distance limits
+	spawn_wander_radius = 30,
+	max_distance_from_spawn = 50,
+	-- Food drop visual system
+	food_drop_duration = 2,       -- Seconds the food item sits on the ground
 }
 
 --------------------------------------------------------------------
@@ -46,12 +54,23 @@ end
 
 function lualore.behaviors.is_night_time()
 	local tod = lualore.behaviors.get_time_of_day()
-	return (tod < 0.25 or tod >= 0.75)
+	-- 10PM = 0.9167, 6AM = 0.25
+	-- Night time is from 10PM (0.9167) to 6AM (0.25)
+	return (tod >= 0.9167 or tod < 0.25)
 end
 
 function lualore.behaviors.is_day_time()
 	return not lualore.behaviors.is_night_time()
 end
+
+--------------------------------------------------------------------
+-- STATE MACHINE DEFINITIONS
+--------------------------------------------------------------------
+lualore.behaviors.states = {
+	WANDERING = "wandering",
+	SOCIALIZING = "socializing",
+	RESTING = "resting",
+}
 
 --------------------------------------------------------------------
 -- HOUSE POSITION MANAGEMENT
@@ -62,6 +81,21 @@ function lualore.behaviors.init_house(self)
 		self.nv_home_radius = lualore.behaviors.config.home_radius
 		self.nv_sleeping = false
 		self.nv_stuck_timer = 0
+	end
+
+	-- Initialize state machine fields
+	if not self.nv_behavior_state then
+		self.nv_behavior_state = lualore.behaviors.states.SOCIALIZING  -- Start in socializing mode
+		self.nv_state_timer = 0
+		self.nv_state_target_reached = false
+	end
+
+	-- Initialize spawn position (separate from bed/house)
+	if not self.nv_spawn_pos and self.object then
+		local pos = self.object:get_pos()
+		if pos then
+			self.nv_spawn_pos = vector.new(pos.x, pos.y, pos.z)
+		end
 	end
 end
 
@@ -253,14 +287,21 @@ end
 --------------------------------------------------------------------
 function lualore.behaviors.get_activity_radius(self)
 	local period = lualore.behaviors.get_time_period()
-	local base_radius = self.nv_home_radius or lualore.behaviors.config.home_radius
+
+	-- Use different base radius for day vs night
+	local base_radius
+	if period == "night" then
+		base_radius = lualore.behaviors.config.home_radius  -- 5 blocks at night
+	else
+		base_radius = lualore.behaviors.config.daytime_home_radius  -- 30 blocks during day
+	end
 
 	if period == "morning" then
-		return base_radius * 0.5
+		return base_radius * 0.8
 	elseif period == "afternoon" then
-		return base_radius * 1.2
+		return base_radius * 1.0
 	elseif period == "evening" then
-		return base_radius * 0.7
+		return base_radius * 0.9
 	else
 		return lualore.behaviors.config.sleep_radius
 	end
@@ -350,63 +391,6 @@ function lualore.behaviors.flee_to_house_on_low_health(self)
 	return false
 end
 
---------------------------------------------------------------------
--- BED DETECTION & AVOIDANCE (Daytime behavior)
---------------------------------------------------------------------
-function lualore.behaviors.find_nearby_beds(self)
-	if not self.object then return {} end
-	local pos = self.object:get_pos()
-	if not pos then return {} end
-
-	local radius = lualore.behaviors.config.bed_detection_radius
-	local beds = {}
-
-	for x = -radius, radius do
-		for y = -2, 2 do
-			for z = -radius, radius do
-				local check_pos = {
-					x = math.floor(pos.x) + x,
-					y = math.floor(pos.y) + y,
-					z = math.floor(pos.z) + z
-				}
-				local node = minetest.get_node(check_pos)
-				if node and node.name and node.name:match("bed") then
-					table.insert(beds, check_pos)
-				end
-			end
-		end
-	end
-
-	return beds
-end
-
-function lualore.behaviors.get_bed_avoidance_position(self)
-	if not self.object then return nil end
-	local pos = self.object:get_pos()
-	if not pos then return nil end
-
-	local nearby_beds = lualore.behaviors.find_nearby_beds(self)
-	if #nearby_beds == 0 then return nil end
-
-	local closest_bed = nil
-	local closest_dist = 999
-
-	for _, bed_pos in ipairs(nearby_beds) do
-		local dist = vector.distance(pos, bed_pos)
-		if dist < closest_dist then
-			closest_dist = dist
-			closest_bed = bed_pos
-		end
-	end
-
-	if closest_bed and closest_dist < lualore.behaviors.config.bed_avoidance_distance then
-		local away_dir = vector.direction(closest_bed, pos)
-		local away_pos = vector.add(pos, vector.multiply(away_dir, 8))
-		return away_pos
-	end
-
-	return nil
-end
 
 --------------------------------------------------------------------
 -- SOCIAL INTERACTIONS (Villager-to-Villager)
@@ -439,6 +423,11 @@ function lualore.behaviors.find_npc_to_socialize_with(self)
 	local pos = self.object:get_pos()
 	if not pos then return nil end
 
+	local current_time = minetest.get_gametime()
+	if not self.nv_social_partner_cooldowns then
+		self.nv_social_partner_cooldowns = {}
+	end
+
 	local closest_npc = nil
 	local closest_dist = 999
 
@@ -447,7 +436,11 @@ function lualore.behaviors.find_npc_to_socialize_with(self)
 			local npc_pos = npc.object:get_pos()
 			if npc_pos then
 				local dist = vector.distance(pos, npc_pos)
-				if dist > 2 and dist < closest_dist then
+				local npc_id = tostring(npc.object)
+				local last_time = self.nv_social_partner_cooldowns[npc_id] or 0
+				local on_cooldown = (current_time - last_time) < lualore.behaviors.config.social_interaction_cooldown
+
+				if dist > 2 and dist < closest_dist and not on_cooldown then
 					closest_dist = dist
 					closest_npc = npc
 				end
@@ -464,7 +457,7 @@ function lualore.behaviors.should_socialize(self)
 	end
 
 	local current_time = minetest.get_gametime()
-	return (current_time - self.nv_last_social_time) >= lualore.behaviors.config.social_interaction_cooldown
+	return (current_time - self.nv_last_social_time) >= 10
 end
 
 function lualore.behaviors.emit_social_particles(pos1, pos2)
@@ -501,6 +494,12 @@ function lualore.behaviors.handle_social_interactions(self)
 	local pos1 = self.object:get_pos()
 	if not pos1 then return end
 
+	if not self.nv_social_partner_cooldowns then
+		self.nv_social_partner_cooldowns = {}
+	end
+
+	local current_time = minetest.get_gametime()
+
 	for _, other in ipairs(nearby) do
 		if other.object then
 			local pos2 = other.object:get_pos()
@@ -517,16 +516,29 @@ function lualore.behaviors.handle_social_interactions(self)
 					self.nv_loneliness = math.max(0, self.nv_loneliness - 15)
 				end
 
+				-- Stamp per-pair cooldown so they won't seek each other for 5 minutes
+				local other_id = tostring(other.object)
+				self.nv_social_partner_cooldowns[other_id] = current_time
+
+				-- Also stamp on the other villager so they won't come back either
+				if not other.nv_social_partner_cooldowns then
+					other.nv_social_partner_cooldowns = {}
+				end
+				other.nv_social_partner_cooldowns[tostring(self.object)] = current_time
+
 				break
 			end
 		end
 	end
 
-	self.nv_last_social_time = minetest.get_gametime()
+	self.nv_last_social_time = current_time
+
+	-- Force transition to WANDERING so villagers separate after socializing
+	lualore.behaviors.transition_state(self, lualore.behaviors.states.WANDERING)
 end
 
 --------------------------------------------------------------------
--- FOOD SHARING SYSTEM
+-- FOOD SHARING SYSTEM (Visual Drop)
 --------------------------------------------------------------------
 function lualore.behaviors.find_hungry_villager_nearby(self)
 	if not self.object then return nil end
@@ -559,32 +571,30 @@ function lualore.behaviors.should_share_food(self)
 		return false
 	end
 
+	if self.nv_food_drop_pending then
+		return false
+	end
+
 	local current_time = minetest.get_gametime()
 	return (current_time - self.nv_last_food_share_time) >= lualore.behaviors.config.food_share_cooldown
 end
 
-function lualore.behaviors.emit_food_share_particles(pos1, pos2)
-	local mid_pos = {
-		x = (pos1.x + pos2.x) / 2,
-		y = (pos1.y + pos2.y) / 2 + 1,
-		z = (pos1.z + pos2.z) / 2,
-	}
-
+function lualore.behaviors.emit_eat_particles(pos)
 	minetest.add_particlespawner({
-		amount = 64,
-		time = 1.5,
-		minpos = {x = mid_pos.x - 0.3, y = mid_pos.y, z = mid_pos.z - 0.3},
-		maxpos = {x = mid_pos.x + 0.3, y = mid_pos.y + 0.5, z = mid_pos.z + 0.3},
-		minvel = {x = 0, y = 0.3, z = 0},
-		maxvel = {x = 0, y = 0.8, z = 0},
-		minacc = {x = 0, y = 0, z = 0},
-		maxacc = {x = 0, y = 0, z = 0},
-		minexptime = 1,
-		maxexptime = 2,
-		minsize = 0.2,
-		maxsize = 0.4,
-		texture = "default_cloud.png^[colorize:blue:100",
-		glow = 3,
+		amount = 20,
+		time = 0.6,
+		minpos = {x = pos.x - 0.2, y = pos.y + 1.2, z = pos.z - 0.2},
+		maxpos = {x = pos.x + 0.2, y = pos.y + 1.5, z = pos.z + 0.2},
+		minvel = {x = -0.5, y = 0.2, z = -0.5},
+		maxvel = {x = 0.5, y = 0.8, z = 0.5},
+		minacc = {x = 0, y = -2, z = 0},
+		maxacc = {x = 0, y = -2, z = 0},
+		minexptime = 0.4,
+		maxexptime = 0.8,
+		minsize = 0.3,
+		maxsize = 0.6,
+		texture = "farming_bread.png",
+		glow = 2,
 	})
 end
 
@@ -598,20 +608,88 @@ function lualore.behaviors.handle_food_sharing(self)
 	local pos2 = hungry_villager.object:get_pos()
 	if not pos1 or not pos2 then return end
 
+	-- Cost the giver a bit of hunger
 	self.nv_hunger = math.min(100, (self.nv_hunger or 1) + 15)
-	hungry_villager.nv_hunger = math.max(1, (hungry_villager.nv_hunger or 1) - 30)
-
-	if hungry_villager.health and hungry_villager.hp_max then
-		hungry_villager.health = math.min(hungry_villager.hp_max, hungry_villager.health + 3)
-	end
-
-	lualore.behaviors.emit_food_share_particles(pos1, pos2)
-
-	if hungry_villager.nv_mood_value then
-		hungry_villager.nv_mood_value = math.min(100, (hungry_villager.nv_mood_value or 50) + 10)
-	end
-
 	self.nv_last_food_share_time = minetest.get_gametime()
+	self.nv_food_drop_pending = true
+
+	-- Drop the food item visually between the two villagers
+	local drop_pos = {
+		x = pos1.x + (pos2.x - pos1.x) * 0.4,
+		y = pos1.y + 0.5,
+		z = pos1.z + (pos2.z - pos1.z) * 0.4,
+	}
+
+	local food_obj = minetest.add_item(drop_pos, "farming:bread")
+
+	-- Freeze the hungry villager briefly so they "notice" the food
+	if hungry_villager.object then
+		hungry_villager.nv_walking_to_food = true
+		hungry_villager.nv_food_target = drop_pos
+		hungry_villager.nv_food_pickup_time = minetest.get_gametime() + lualore.behaviors.config.food_drop_duration
+	end
+
+	-- After 2 seconds: remove the item, feed the hungry villager, emit eat particles
+	minetest.after(lualore.behaviors.config.food_drop_duration, function()
+		if food_obj and food_obj:is_valid() then
+			food_obj:remove()
+		end
+
+		if hungry_villager and hungry_villager.object and hungry_villager.object:is_valid() then
+			hungry_villager.nv_hunger = math.max(1, (hungry_villager.nv_hunger or 1) - 40)
+			hungry_villager.nv_walking_to_food = nil
+			hungry_villager.nv_food_target = nil
+			hungry_villager.nv_food_pickup_time = nil
+
+			if hungry_villager.health and hungry_villager.hp_max then
+				hungry_villager.health = math.min(hungry_villager.hp_max, hungry_villager.health + 3)
+			end
+
+			if hungry_villager.nv_mood_value then
+				hungry_villager.nv_mood_value = math.min(100, (hungry_villager.nv_mood_value or 50) + 15)
+			end
+
+			local eat_pos = hungry_villager.object:get_pos()
+			if eat_pos then
+				lualore.behaviors.emit_eat_particles(eat_pos)
+			end
+
+			minetest.sound_play("default_item_smoke", {
+				pos = eat_pos or drop_pos,
+				gain = 0.4,
+				max_hear_distance = 10,
+			}, true)
+		end
+
+		if self and self.object and self.object:is_valid() then
+			self.nv_food_drop_pending = nil
+		end
+	end)
+end
+
+-- Called from the main step to walk the hungry villager toward dropped food
+function lualore.behaviors.handle_walk_to_food(self)
+	if not self.nv_walking_to_food then return false end
+	if not self.nv_food_target then return false end
+	if not self.object then return false end
+
+	local pos = self.object:get_pos()
+	if not pos then return false end
+
+	local dist = vector.distance(pos, self.nv_food_target)
+	if dist > 1.2 then
+		self._target = self.nv_food_target
+		self.state = "walk"
+		self:set_animation("walk")
+		local dir = vector.direction(pos, self.nv_food_target)
+		self.object:set_yaw(minetest.dir_to_yaw(dir))
+	else
+		self._target = nil
+		self.state = "stand"
+		self:set_animation("stand")
+	end
+
+	return true
 end
 
 --------------------------------------------------------------------
@@ -673,7 +751,135 @@ function lualore.behaviors.check_nearby_players(self)
 end
 
 --------------------------------------------------------------------
--- DAYTIME BEHAVIOR (Bed avoidance & NPC seeking)
+-- STATE MACHINE BEHAVIOR HANDLERS
+--------------------------------------------------------------------
+
+-- Get duration for current state
+function lualore.behaviors.get_state_duration(state)
+	if state == lualore.behaviors.states.WANDERING then
+		return lualore.behaviors.config.state_wander_duration
+	elseif state == lualore.behaviors.states.SOCIALIZING then
+		return lualore.behaviors.config.state_social_duration
+	elseif state == lualore.behaviors.states.RESTING then
+		return lualore.behaviors.config.state_rest_duration
+	end
+	return 60
+end
+
+-- Get next state in cycle (daytime only cycles through 3 states)
+function lualore.behaviors.get_next_state(current_state)
+	if current_state == lualore.behaviors.states.WANDERING then
+		return lualore.behaviors.states.SOCIALIZING
+	elseif current_state == lualore.behaviors.states.SOCIALIZING then
+		return lualore.behaviors.states.WANDERING  -- After socializing, wander away
+	elseif current_state == lualore.behaviors.states.RESTING then
+		return lualore.behaviors.states.WANDERING
+	end
+	return lualore.behaviors.states.WANDERING
+end
+
+-- Transition to new state
+function lualore.behaviors.transition_state(self, new_state)
+	self.nv_behavior_state = new_state
+	self.nv_state_timer = 0
+	self.nv_state_target_reached = false
+	self._target = nil
+	self.state = "stand"
+end
+
+-- WANDERING STATE: Free roam with natural movement
+function lualore.behaviors.handle_wandering_state(self)
+	if not self.object then return false end
+
+	-- Clear any forced targets to allow natural mobs_redo wandering
+	if self._target then
+		self._target = nil
+	end
+
+	return false
+end
+
+-- SOCIALIZING STATE: Seek nearby villagers (aggressive version)
+function lualore.behaviors.handle_socializing_state(self)
+	if not self.object then return false end
+	local pos = self.object:get_pos()
+	if not pos then return false end
+
+	-- Look for nearby villagers - continuously update target, not just once
+	local target_npc = lualore.behaviors.find_npc_to_socialize_with(self)
+	if target_npc and target_npc.object then
+		local npc_pos = target_npc.object:get_pos()
+		if npc_pos then
+			local dist = vector.distance(pos, npc_pos)
+
+			-- If very close, stand and socialize
+			if dist <= 3 then
+				self._target = nil
+				self.state = "stand"
+				self:set_animation("stand")
+				return true
+			end
+
+			-- Move towards the villager - always update target
+			-- Check for doors in path
+			if not self.nv_waiting_for_door then
+				local door_pos = lualore.behaviors.find_nearest_door_to_target(self, npc_pos)
+				if door_pos then
+					self.nv_final_destination = npc_pos
+					self._target = door_pos
+					self.state = "walk"
+					self:set_animation("walk")
+					local dir = vector.direction(pos, door_pos)
+					local yaw = minetest.dir_to_yaw(dir)
+					self.object:set_yaw(yaw)
+					return true
+				end
+			end
+
+			self._target = npc_pos
+			self.state = "walk"
+			self:set_animation("walk")
+			local dir = vector.direction(pos, npc_pos)
+			local yaw = minetest.dir_to_yaw(dir)
+			self.object:set_yaw(yaw)
+			return true
+		end
+	end
+
+	-- No villagers nearby, just wander
+	self._target = nil
+	return false
+end
+
+-- RESTING STATE: Stand still or minimal movement
+function lualore.behaviors.handle_resting_state(self)
+	if not self.object then return false end
+
+	-- Clear targets and just stand
+	self._target = nil
+	self.state = "stand"
+	self:set_animation("stand")
+
+	return true
+end
+
+-- Main state handler dispatcher
+function lualore.behaviors.handle_state_behavior(self)
+	local state = self.nv_behavior_state or lualore.behaviors.states.SOCIALIZING
+
+	if state == lualore.behaviors.states.WANDERING then
+		return lualore.behaviors.handle_wandering_state(self)
+	elseif state == lualore.behaviors.states.SOCIALIZING then
+		return lualore.behaviors.handle_socializing_state(self)
+	elseif state == lualore.behaviors.states.RESTING then
+		return lualore.behaviors.handle_resting_state(self)
+	end
+
+	return false
+end
+
+--------------------------------------------------------------------
+-- DAYTIME BEHAVIOR (State-based system)
 --------------------------------------------------------------------
 function lualore.behaviors.handle_daytime_movement(self)
 	if not lualore.behaviors.is_day_time() then
@@ -705,71 +911,8 @@ function lualore.behaviors.handle_daytime_movement(self)
 		end
 	end
 
-	local avoid_pos = lualore.behaviors.get_bed_avoidance_position(self)
-	if avoid_pos then
-		-- Check for doors in path to avoid position
-		if not self.nv_waiting_for_door then
-			local door_pos = lualore.behaviors.find_nearest_door_to_target(self, avoid_pos)
-			if door_pos then
-				self.nv_final_destination = avoid_pos
-				self._target = door_pos
-				self.state = "walk"
-				self:set_animation("walk")
-
-				local dir = vector.direction(pos, door_pos)
-				local yaw = minetest.dir_to_yaw(dir)
-				self.object:set_yaw(yaw)
-				return true
-			end
-		end
-
-		self._target = avoid_pos
-		self.state = "walk"
-		self:set_animation("walk")
-
-		local dir = vector.direction(pos, avoid_pos)
-		local yaw = minetest.dir_to_yaw(dir)
-		self.object:set_yaw(yaw)
-		return true
-	end
-
-	if math.random() < 0.1 then
-		local target_npc = lualore.behaviors.find_npc_to_socialize_with(self)
-		if target_npc and target_npc.object then
-			local npc_pos = target_npc.object:get_pos()
-			if npc_pos then
-				local dist = vector.distance(pos, npc_pos)
-				if dist > 3 then
-					-- Check for doors in path to NPC
-					if not self.nv_waiting_for_door then
-						local door_pos = lualore.behaviors.find_nearest_door_to_target(self, npc_pos)
-						if door_pos then
-							self.nv_final_destination = npc_pos
-							self._target = door_pos
-							self.state = "walk"
-							self:set_animation("walk")
-
-							local dir = vector.direction(pos, door_pos)
-							local yaw = minetest.dir_to_yaw(dir)
-							self.object:set_yaw(yaw)
-							return true
-						end
-					end
-
-					self._target = npc_pos
-					self.state = "walk"
-					self:set_animation("walk")
-
-					local dir = vector.direction(pos, npc_pos)
-					local yaw = minetest.dir_to_yaw(dir)
-					self.object:set_yaw(yaw)
-					return true
-				end
-			end
-		end
-	end
-
-	return false
+	-- Handle current state behavior
+	return lualore.behaviors.handle_state_behavior(self)
 end
 
 --------------------------------------------------------------------
@@ -902,11 +1045,30 @@ function lualore.behaviors.update(self, dtime)
 		return
 	end
 
+	-- Food pickup overrides all other movement
+	if lualore.behaviors.handle_walk_to_food(self) then
+		return
+	end
+
+	-- Night time overrides all state behavior
 	if lualore.behaviors.is_night_time() then
 		if lualore.behaviors.handle_night_time_movement_with_avoidance(self) then
 			return
 		end
 	else
+		-- Daytime: Update state timer and handle transitions
+		self.nv_state_timer = (self.nv_state_timer or 0) + dtime
+
+		local current_state = self.nv_behavior_state or lualore.behaviors.states.WANDERING
+		local state_duration = lualore.behaviors.get_state_duration(current_state)
+
+		-- Check if it's time to transition to next state
+		if self.nv_state_timer >= state_duration then
+			local next_state = lualore.behaviors.get_next_state(current_state)
+			lualore.behaviors.transition_state(self, next_state)
+		end
+
+		-- Handle daytime movement with state-based behavior
 		if lualore.behaviors.handle_daytime_movement(self) then
 			return
 		end
@@ -949,6 +1111,11 @@ function lualore.behaviors.get_save_data(self)
 		nv_waiting_for_door = self.nv_waiting_for_door,
 		nv_door_wait_start = self.nv_door_wait_start,
 		nv_waiting_door_pos = self.nv_waiting_door_pos,
+		-- State machine data
+		nv_behavior_state = self.nv_behavior_state,
+		nv_state_timer = self.nv_state_timer,
+		nv_state_target_reached = self.nv_state_target_reached,
+		nv_spawn_pos = self.nv_spawn_pos,
 	}
 end
 
@@ -966,6 +1133,11 @@ function lualore.behaviors.load_save_data(self, data)
 	self.nv_waiting_for_door = data.nv_waiting_for_door or false
 	self.nv_door_wait_start = data.nv_door_wait_start or 0
 	self.nv_waiting_door_pos = data.nv_waiting_door_pos
+	-- State machine data
+	self.nv_behavior_state = data.nv_behavior_state or lualore.behaviors.states.SOCIALIZING
+	self.nv_state_timer = data.nv_state_timer or 0
+	self.nv_state_target_reached = data.nv_state_target_reached or false
+	self.nv_spawn_pos = data.nv_spawn_pos
 end
 
 print(S("[MOD] Native Villages - Enhanced villager behaviors loaded"))
