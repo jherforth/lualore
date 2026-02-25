@@ -160,6 +160,12 @@ mobs:register_mob("lualore:sky_folk", {
 						self.sf_home_pos = vector.new(pos.x, pos.y, pos.z)
 					end
 
+					-- Initialize social timer
+					if not self.sf_social_timer then
+						self.sf_social_timer = 0
+					end
+					self.sf_social_timer = self.sf_social_timer + dtime
+
 					local function has_ground_below(check_pos)
 						local below = {x = check_pos.x, y = check_pos.y - 1, z = check_pos.z}
 						local node = minetest.get_node(below)
@@ -173,6 +179,41 @@ mobs:register_mob("lualore:sky_folk", {
 							if has_ground_below(ahead) then count = count + 1 end
 						end
 						return count
+					end
+
+					-- Look for nearby Sky Folk to socialize with (every 2 seconds)
+					if self.sf_social_timer >= 2 then
+						self.sf_social_timer = 0
+
+						local nearby_objects = minetest.get_objects_inside_radius(pos, 15)
+						local closest_sky_folk = nil
+						local closest_dist = 999
+
+						for _, obj in ipairs(nearby_objects) do
+							if obj ~= self.object then
+								local ent = obj:get_luaentity()
+								if ent and ent.name == "lualore:sky_folk" and ent.liberated then
+									local other_pos = obj:get_pos()
+									if other_pos then
+										local dist = vector.distance(pos, other_pos)
+										if dist > 3 and dist < closest_dist then
+											closest_dist = dist
+											closest_sky_folk = other_pos
+										end
+									end
+								end
+							end
+						end
+
+						-- If found another Sky Folk and not too close, move towards them
+						if closest_sky_folk and math.random() < 0.6 then
+							local dir = vector.direction(pos, closest_sky_folk)
+							self.object:set_velocity({
+								x = dir.x * 1.5,
+								y = self.object:get_velocity().y,
+								z = dir.z * 1.5,
+							})
+						end
 					end
 
 					local vel = self.object:get_velocity()

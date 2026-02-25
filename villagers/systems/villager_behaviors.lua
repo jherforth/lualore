@@ -16,9 +16,9 @@ lualore.behaviors.config = {
 	social_interaction_cooldown = 45,
 	food_share_cooldown = 60,
 	stuck_teleport_threshold = 300,
-	bed_detection_radius = 8,  -- How far to detect beds during daytime
-	bed_avoidance_distance = 6,  -- Stay this far from beds during day
-	npc_seek_radius = 10,  -- Radius to search for NPCs to socialize with during day
+	bed_detection_radius = 4,  -- How far to detect beds during daytime (reduced)
+	bed_avoidance_distance = 3,  -- Stay this far from beds during day (reduced)
+	npc_seek_radius = 15,  -- Radius to search for NPCs to socialize with during day (increased)
 }
 
 --------------------------------------------------------------------
@@ -673,7 +673,7 @@ function lualore.behaviors.check_nearby_players(self)
 end
 
 --------------------------------------------------------------------
--- DAYTIME BEHAVIOR (Bed avoidance & NPC seeking)
+-- DAYTIME BEHAVIOR (NPC seeking prioritized, bed avoidance secondary)
 --------------------------------------------------------------------
 function lualore.behaviors.handle_daytime_movement(self)
 	if not lualore.behaviors.is_day_time() then
@@ -705,35 +705,8 @@ function lualore.behaviors.handle_daytime_movement(self)
 		end
 	end
 
-	local avoid_pos = lualore.behaviors.get_bed_avoidance_position(self)
-	if avoid_pos then
-		-- Check for doors in path to avoid position
-		if not self.nv_waiting_for_door then
-			local door_pos = lualore.behaviors.find_nearest_door_to_target(self, avoid_pos)
-			if door_pos then
-				self.nv_final_destination = avoid_pos
-				self._target = door_pos
-				self.state = "walk"
-				self:set_animation("walk")
-
-				local dir = vector.direction(pos, door_pos)
-				local yaw = minetest.dir_to_yaw(dir)
-				self.object:set_yaw(yaw)
-				return true
-			end
-		end
-
-		self._target = avoid_pos
-		self.state = "walk"
-		self:set_animation("walk")
-
-		local dir = vector.direction(pos, avoid_pos)
-		local yaw = minetest.dir_to_yaw(dir)
-		self.object:set_yaw(yaw)
-		return true
-	end
-
-	if math.random() < 0.1 then
+	-- PRIORITY 1: Look for other NPCs to socialize with (increased chance to 60%)
+	if math.random() < 0.6 then
 		local target_npc = lualore.behaviors.find_npc_to_socialize_with(self)
 		if target_npc and target_npc.object then
 			local npc_pos = target_npc.object:get_pos()
@@ -767,6 +740,35 @@ function lualore.behaviors.handle_daytime_movement(self)
 				end
 			end
 		end
+	end
+
+	-- PRIORITY 2: Avoid beds only if too close (reduced priority)
+	local avoid_pos = lualore.behaviors.get_bed_avoidance_position(self)
+	if avoid_pos then
+		-- Check for doors in path to avoid position
+		if not self.nv_waiting_for_door then
+			local door_pos = lualore.behaviors.find_nearest_door_to_target(self, avoid_pos)
+			if door_pos then
+				self.nv_final_destination = avoid_pos
+				self._target = door_pos
+				self.state = "walk"
+				self:set_animation("walk")
+
+				local dir = vector.direction(pos, door_pos)
+				local yaw = minetest.dir_to_yaw(dir)
+				self.object:set_yaw(yaw)
+				return true
+			end
+		end
+
+		self._target = avoid_pos
+		self.state = "walk"
+		self:set_animation("walk")
+
+		local dir = vector.direction(pos, avoid_pos)
+		local yaw = minetest.dir_to_yaw(dir)
+		self.object:set_yaw(yaw)
+		return true
 	end
 
 	return false
