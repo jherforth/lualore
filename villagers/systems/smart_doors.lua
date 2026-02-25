@@ -1,17 +1,16 @@
 -- smart_doors.lua
--- Makes doors automatically open for NPCs
+-- Opens all doors at 6AM and closes them at 10PM
 
 lualore.smart_doors = {}
 
--- Configuration
-local DOOR_CHECK_INTERVAL = 0.3  -- Check for NPCs every 0.3 seconds
-local DOOR_DETECTION_RADIUS = 4  -- How close NPCs need to be (4 blocks)
+local DAY_START   = 0.25    -- 6AM
+local DAY_END     = 0.9167  -- 10PM
+local CHECK_INTERVAL = 10   -- Globalstep poll interval in seconds
 
 --------------------------------------------------------------------
 -- HELPER FUNCTIONS
 --------------------------------------------------------------------
 
--- Check if a node is a door (closed)
 local function is_closed_door(node_name)
 	return node_name and (
 		node_name:match("^doors:door_.*_b$") or
@@ -19,183 +18,115 @@ local function is_closed_door(node_name)
 	)
 end
 
--- Check if a node is an open door
 local function is_open_door(node_name)
 	return node_name and node_name:match("^doors:door_.*_a$")
 end
 
--- Get the open version of a door name
 local function get_open_door_name(closed_name)
 	return closed_name:gsub("_b$", "_a")
 end
 
--- Get the closed version of a door name
 local function get_closed_door_name(open_name)
 	return open_name:gsub("_a$", "_b")
 end
 
--- Check if there are any NPCs nearby
-local function has_nearby_npcs(pos, radius)
-	local objects = minetest.get_objects_inside_radius(pos, radius)
-
-	for _, obj in ipairs(objects) do
-		if obj and obj:get_luaentity() then
-			local entity = obj:get_luaentity()
-			-- Check if it's a villager or monster (has the lualore marker)
-			if entity.name and entity.name:match("^lualore:") then
-				-- Open for all NPC types including monsters
-				return true
-			end
-		end
-	end
-
-	return false
+local function is_daytime()
+	local tod = minetest.get_timeofday()
+	return tod >= DAY_START and tod < DAY_END
 end
 
--- Open a door (no cooldown)
 local function open_door(pos, node)
 	local open_name = get_open_door_name(node.name)
-
-	-- Check if the open door exists
 	if minetest.registered_nodes[open_name] then
 		minetest.swap_node(pos, {name = open_name, param1 = node.param1, param2 = node.param2})
-
-		-- Play door sound if available
 		local def = minetest.registered_nodes[open_name]
 		if def and def.sound_open then
 			minetest.sound_play(def.sound_open, {pos = pos, gain = 0.3, max_hear_distance = 10})
 		end
-
-		-- Set timer to check for closing
-		local timer = minetest.get_node_timer(pos)
-		timer:start(DOOR_CHECK_INTERVAL)
-
 		return true
 	end
-
 	return false
 end
 
--- Close a door (no cooldown)
 local function close_door(pos, node)
 	local closed_name = get_closed_door_name(node.name)
-
-	-- Check if the closed door exists
 	if minetest.registered_nodes[closed_name] then
 		minetest.swap_node(pos, {name = closed_name, param1 = node.param1, param2 = node.param2})
-
-		-- Play door sound if available
 		local def = minetest.registered_nodes[closed_name]
 		if def and def.sound_close then
 			minetest.sound_play(def.sound_close, {pos = pos, gain = 0.3, max_hear_distance = 10})
 		end
-
 		return true
 	end
-
 	return false
 end
 
 --------------------------------------------------------------------
--- NODE TIMER FOR DOORS
+-- TIME-BASED DOOR SWEEP
 --------------------------------------------------------------------
 
--- Timer callback for closed doors - check if NPCs are nearby
-local function closed_door_timer(pos, elapsed)
-	local node = minetest.get_node(pos)
+local function update_doors_near_players(want_open)
+	local players = minetest.get_connected_players()
+	local visited = {}
 
-	if not is_closed_door(node.name) then
-		return false  -- Stop timer if node changed
-	end
+	for _, player in ipairs(players) do
+		local ppos = player:get_pos()
+		local minp = vector.subtract(ppos, 128)
+		local maxp = vector.add(ppos, 128)
 
-	-- Check for nearby NPCs
-	if has_nearby_npcs(pos, DOOR_DETECTION_RADIUS) then
-		open_door(pos, node)
-		return true  -- Continue timer (now as open door)
-	end
-
-	return true  -- Keep checking
-end
-
--- Timer callback for open doors - check if NPCs left
-local function open_door_timer(pos, elapsed)
-	local node = minetest.get_node(pos)
-
-	if not is_open_door(node.name) then
-		return false  -- Stop timer if node changed
-	end
-
-	-- Check if NPCs are still nearby
-	if not has_nearby_npcs(pos, DOOR_DETECTION_RADIUS) then
-		-- No NPCs nearby, close the door immediately
-		close_door(pos, node)
-		return true  -- Continue timer (now as closed door)
-	end
-
-	return true  -- Keep checking
-end
-
---------------------------------------------------------------------
--- OVERRIDE DOOR NODES
---------------------------------------------------------------------
-
--- Function to make a door smart
-local function make_door_smart(door_name, is_open)
-	local original_def = minetest.registered_nodes[door_name]
-	if not original_def then return end
-
-	-- Override the node definition
-	minetest.override_item(door_name, {
-		on_timer = is_open and open_door_timer or closed_door_timer,
-	})
-end
-
--- Register ABM to start timers on all doors
-minetest.register_abm({
-	label = "Start door timers for NPC detection",
-	nodenames = {"group:door"},
-	interval = 5,
-	chance = 1,
-	catch_up = false,
-	action = function(pos, node)
-		local timer = minetest.get_node_timer(pos)
-		if not timer:is_started() then
-			timer:start(DOOR_CHECK_INTERVAL)
-		end
-	end,
-})
-
--- Also register on all door node names specifically
-minetest.register_lbm({
-	label = "Start door timers on load",
-	name = "lualore:start_door_timers",
-	nodenames = {"group:door"},
-	run_at_every_load = true,
-	action = function(pos, node)
-		local timer = minetest.get_node_timer(pos)
-		if not timer:is_started() then
-			timer:start(DOOR_CHECK_INTERVAL)
-		end
-	end,
-})
-
---------------------------------------------------------------------
--- INITIALIZATION
---------------------------------------------------------------------
-
--- Make all registered doors smart
-minetest.register_on_mods_loaded(function()
-	for name, def in pairs(minetest.registered_nodes) do
-		if name:match("^doors:door_.*_b$") then
-			-- Closed door
-			make_door_smart(name, false)
-		elseif name:match("^doors:door_.*_a$") then
-			-- Open door
-			make_door_smart(name, true)
+		if want_open then
+			local positions = minetest.find_nodes_in_area(minp, maxp, {"group:door"})
+			for _, pos in ipairs(positions) do
+				local key = minetest.pos_to_string(pos)
+				if not visited[key] then
+					visited[key] = true
+					local node = minetest.get_node(pos)
+					if is_closed_door(node.name) then
+						open_door(pos, node)
+					end
+				end
+			end
+		else
+			local positions = minetest.find_nodes_in_area(minp, maxp, {"group:door"})
+			for _, pos in ipairs(positions) do
+				local key = minetest.pos_to_string(pos)
+				if not visited[key] then
+					visited[key] = true
+					local node = minetest.get_node(pos)
+					if is_open_door(node.name) then
+						close_door(pos, node)
+					end
+				end
+			end
 		end
 	end
+end
 
-	minetest.log("action", "[lualore] Smart doors initialized")
+--------------------------------------------------------------------
+-- GLOBALSTEP SCHEDULER
+--------------------------------------------------------------------
+
+local elapsed_accum = 0
+local last_was_day = nil
+
+minetest.register_globalstep(function(dtime)
+	elapsed_accum = elapsed_accum + dtime
+	if elapsed_accum < CHECK_INTERVAL then return end
+	elapsed_accum = 0
+
+	local now_day = is_daytime()
+
+	if last_was_day == nil then
+		-- First tick: bring all doors to the correct state without firing transitions
+		update_doors_near_players(now_day)
+		last_was_day = now_day
+		return
+	end
+
+	if now_day ~= last_was_day then
+		update_doors_near_players(now_day)
+		last_was_day = now_day
+	end
 end)
 
-minetest.log("action", "[lualore] Smart doors system loaded")
+minetest.log("action", "[lualore] Time-based door system loaded (open 6AM, close 10PM)")
