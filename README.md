@@ -1,6 +1,6 @@
 # Lua Lore
 
-A villager and lore mod for Luanti (formerly Minetest) that adds living villages across multiple biomes with NPCs that have moods, trades, and unique behaviors. Explore floating sky cities, discover underground wizard castles, and interact with diverse communities.
+A villager and lore mod for Luanti that adds living villages across multiple biomes with NPCs that have moods, trades, and unique behaviors. Explore floating sky cities, discover underground wizard castles, and interact with diverse communities.
 
 ## Features
 
@@ -80,7 +80,7 @@ Village doors automatically open when NPCs approach and close after they pass th
 - **mobs** (mobs_redo), **default**, **farming**, **3d_armour** - Required
 - **caverealms**, **everness**, **ethereal** - Required for biome support
 - **intllib** - Optional (for translations)
-- **OR** play on an Asuna server which includes all dependencies
+- **OR** play on an **Asuna**, which includes all dependencies
 
 ## Usage
 
