@@ -8,7 +8,7 @@ local sky_fortress_noise = {
 	spread = {x = 600, y = 600, z = 600},
 	seed = 98534,
 	octaves = 3,
-	persist = 0.6
+	persist = 0.5
 }
 
 local sky_house_noise = {
