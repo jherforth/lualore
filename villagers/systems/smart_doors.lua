@@ -129,4 +129,30 @@ minetest.register_globalstep(function(dtime)
 	end
 end)
 
+--------------------------------------------------------------------
+-- CANCEL ANY LEGACY NODE TIMERS ON DOOR NODES
+--------------------------------------------------------------------
+
+minetest.register_lbm({
+	label = "Cancel legacy door node timers",
+	name = "lualore:cancel_door_timers",
+	nodenames = {"group:door"},
+	run_at_every_load = true,
+	action = function(pos, node)
+		local timer = minetest.get_node_timer(pos)
+		if timer:is_started() then
+			timer:stop()
+		end
+	end,
+})
+
+minetest.register_on_mods_loaded(function()
+	for name, _ in pairs(minetest.registered_nodes) do
+		if name:match("^doors:door_") then
+			minetest.override_item(name, {on_timer = nil})
+		end
+	end
+	minetest.log("action", "[lualore] Legacy door timers cleared")
+end)
+
 minetest.log("action", "[lualore] Time-based door system loaded (open 6AM, close 10PM)")
