@@ -76,9 +76,9 @@ python tools/combine_gltf_animations.py models/lit.gltf \
 
 Sizes / orientation:
 
-- The Blockbench export uses raw Blockbench units (16 units = 1 node). The
-  model is 20 units tall, so `VISUAL_SIZE = 0.0625` renders it at ~1.25 nodes
-  (a small imp). Change `VISUAL_SIZE` in `caves/lit.lua` to taste.
+- Entity meshes render at 10 units = 1 node, so the 20-unit model is 2.0
+  nodes tall at scale 1. `VISUAL_SIZE = 1.25` renders it at ~2.5 nodes tall
+  (twice its original size). Change `VISUAL_SIZE` in `caves/lit.lua` to taste.
 - If the creature faces the wrong way in game, add `rotate = 180` (or 90/270)
   to the mob definition.
 - The embedded base64 image in the glTF is ignored by Luanti — the texture is
@@ -90,7 +90,7 @@ All gameplay knobs are constants at the top of `caves/lit.lua`:
 
 | Constant | Default | Meaning |
 | --- | --- | --- |
-| `VISUAL_SIZE` | `0.0625` | Rendered size multiplier. |
+| `VISUAL_SIZE` | `1.25` | Rendered size multiplier (~2.5 nodes tall). |
 | `BURN_TIME` | `4` | Seconds the player burns after a bolt hit. |
 | `BURN_DAMAGE` | `1` | Burn damage per second. |
 | `BOLT_DAMAGE` | `6` | Direct bolt hit damage (fleshy group). |

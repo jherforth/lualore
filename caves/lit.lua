@@ -32,8 +32,8 @@
 
 	Size note: the engine renders entity meshes at 10 units per node
 	(the model is 20 units tall, so 2.0 nodes at scale 1); VISUAL_SIZE
-	0.625 brings it to its intended height of ~1.25 nodes. Adjust
-	VISUAL_SIZE below to taste.
+	1.25 renders it at ~2.5 nodes tall - twice its original size.
+	Adjust VISUAL_SIZE below to taste.
 ]]
 
 local S = minetest.get_translator("lualore")
@@ -50,8 +50,9 @@ local ANIM = {
 	mine = {11.25, 16.75},
 }
 -- Entities render meshes at 10 units per node, so the 20-unit model is
--- 2.0 nodes tall at scale 1; 0.625 gives the intended ~1.25 nodes.
-local VISUAL_SIZE = 0.625
+-- 2.0 nodes tall at scale 1; 1.25 renders it at ~2.5 nodes tall
+-- (twice the previous size).
+local VISUAL_SIZE = 1.25
 
 -- Combat / movement tuning
 local BURN_TIME = 4        -- seconds a fire bolt keeps burning the player
@@ -135,7 +136,7 @@ local function update_lit_light(self, dtime)
 		amount = 3,
 		time = 0.5,
 		minpos = {x = pos.x - 0.2, y = pos.y + 0.3, z = pos.z - 0.2},
-		maxpos = {x = pos.x + 0.2, y = pos.y + 1.2, z = pos.z + 0.2},
+		maxpos = {x = pos.x + 0.2, y = pos.y + 2.2, z = pos.z + 0.2},
 		minvel = {x = -0.25, y = 0.3, z = -0.25},
 		maxvel = {x = 0.25, y = 0.9, z = 0.25},
 		minacc = {x = 0, y = 0.1, z = 0},
@@ -485,7 +486,7 @@ local function lit_on_attacked(self, hitter)
 			amount = 12,
 			time = 0.4,
 			minpos = {x = pos.x - 0.3, y = pos.y + 0.2, z = pos.z - 0.3},
-			maxpos = {x = pos.x + 0.3, y = pos.y + 1.0, z = pos.z + 0.3},
+			maxpos = {x = pos.x + 0.3, y = pos.y + 2.0, z = pos.z + 0.3},
 			minvel = {x = -1.5, y = 0.5, z = -1.5},
 			maxvel = {x = 1.5, y = 2.5, z = 1.5},
 			minexptime = 0.3,
@@ -503,7 +504,7 @@ local function shoot_fire_bolt(self, target_pos)
 	if not pos then
 		return
 	end
-	local start = {x = pos.x, y = pos.y + 0.8, z = pos.z}
+	local start = {x = pos.x, y = pos.y + 1.6, z = pos.z}
 	local dir = vector.direction(start, target_pos)
 	if vector.length(dir) == 0 then
 		return
@@ -600,7 +601,7 @@ local function fight_step(self, dtime, target, tpos, mpos, dist)
 	-- hurl fire bolts at the player
 	self._lit_shot_timer = (self._lit_shot_timer or 0) + dtime
 	if dist <= 20 and self._lit_shot_timer >= 2.0 then
-		local eye = {x = mpos.x, y = mpos.y + 0.8, z = mpos.z}
+		local eye = {x = mpos.x, y = mpos.y + 1.6, z = mpos.z}
 		local aim = {x = tpos.x, y = tpos.y + 1.2, z = tpos.z}
 		if minetest.line_of_sight(eye, aim) then
 			self._lit_shot_timer = 0
@@ -920,7 +921,10 @@ mobs:register_mob("lualore:lit", {
 	hp_max = 24,
 	armor = 50,
 	blood_amount = 0, -- it is made of flame, not meat
-	collisionbox = {-0.3, 0, -0.3, 0.3, 1.0, 0.3},
+	-- Twice as tall as the original build (matches the doubled model);
+	-- the width stays narrow so the drill-down escape still fits the
+	-- 1x1 shaft it digs.
+	collisionbox = {-0.3, 0, -0.3, 0.3, 2.0, 0.3},
 	visual = "mesh",
 	mesh = "lit_combined.gltf",
 	textures = {"lit.png"},
@@ -1001,7 +1005,7 @@ mobs:register_mob("lualore:lit", {
 					local opos = obj:get_pos()
 					if obj:is_player() and opos
 							and minetest.line_of_sight(
-								{x = mpos.x, y = mpos.y + 0.8, z = mpos.z},
+								{x = mpos.x, y = mpos.y + 1.6, z = mpos.z},
 								{x = opos.x, y = opos.y + 1.2, z = opos.z}) then
 						lit_on_attacked(self, obj)
 						break
