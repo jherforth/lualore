@@ -508,12 +508,43 @@ local function spawn_group(chosen)
 	for i = 1, math.min(#chosen, #WIZARD_NAMES) do
 		local mob = "lualore:" .. WIZARD_NAMES[i]
 		if minetest.registered_entities[mob] then
-			if minetest.add_entity(chosen[i], mob) then
+			local obj = minetest.add_entity(chosen[i], mob)
+			if obj then
+				local ent = obj:get_luaentity()
+				if ent then
+					-- Castle bosses must survive chunk unloads. The mobs API
+					-- removes untamed monsters when their map area unloads,
+					-- so mark them tamed (still attacks players) and stack
+					-- the lifetimer as a second line of defense, and make the
+					-- engine keep their staticdata on deactivation.
+					ent.tamed = true
+					ent.lifetimer = 20000
+					obj:set_properties({static_save = true})
+				end
 				spawned = spawned + 1
 			end
 		end
 	end
 	return spawned
+end
+
+local WIZARD_MOB_NAMES = {}
+for _, n in ipairs(WIZARD_NAMES) do
+	WIZARD_MOB_NAMES["lualore:" .. n] = true
+end
+
+-- How many of the four boss wizards are actually alive near `pos`.
+local function count_wizards_near(pos, radius)
+	local count = 0
+	for _, obj in ipairs(minetest.get_objects_inside_radius(pos, radius)) do
+		if not obj:is_player() then
+			local ent = obj:get_luaentity()
+			if ent and WIZARD_MOB_NAMES[ent.name] then
+				count = count + 1
+			end
+		end
+	end
+	return count
 end
 
 -- Rescue carve used by the chat commands for castles generated before this
@@ -881,17 +912,26 @@ minetest.register_chatcommand("spawn_castle_wizards", {
 		end
 
 		if nearest then
-			if (nearest.wizards or 0) >= 4 then
-				return true, "Wizards were already spawned at this castle - use /clear_castle_records to reset"
+			-- The record only tracks bookkeeping; verify the wizards are
+			-- actually alive (older spawns were removed when the castle's
+			-- chunks unloaded) and respawn the missing ones.
+			local center = {x = nearest.x, y = nearest.y, z = nearest.z}
+			local statue = find_statue(center, nearest.rot)
+			local probe = statue or center
+			local alive = count_wizards_near(probe, 48)
+			if alive >= 4 then
+				return true, "All 4 wizards are alive at this castle."
 			end
-			local spawned = spawn_castle_wizards(nearest, {unseal = true})
+			nearest.wizards = math.min(alive, 4)
+			local spawned, reason = spawn_castle_wizards(nearest, {unseal = true})
 			if spawned > 0 then
 				nearest.wizards = math.min(4, (nearest.wizards or 0) + spawned)
 				save_castles()
-				return true, string.format("Spawned %d/4 wizards at cave castle %s", spawned,
-					minetest.pos_to_string({x = nearest.x, y = nearest.y, z = nearest.z}))
+				return true, string.format("Spawned %d wizard(s) at cave castle %s (now %d/4)",
+					spawned, minetest.pos_to_string(center), nearest.wizards)
 			end
-			return false, "Found the castle but could not spawn wizards (see log)"
+			return false, "Found the castle but could not spawn wizards (" ..
+				tostring(reason) .. ")"
 		end
 
 		-- Fallback: look for a statue directly (castles placed by earlier

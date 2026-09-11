@@ -354,6 +354,13 @@ minetest.register_chatcommand("spawn_wizard", {
 
 		local obj = minetest.add_entity(pos, "lualore:" .. wizard_name)
 		if obj then
+			local ent = obj:get_luaentity()
+			if ent then
+				-- Keep parity with the castle group: wizards survive chunk unloads
+				ent.tamed = true
+				ent.lifetimer = 20000
+				obj:set_properties({static_save = true})
+			end
 			return true, wizard_name .. " spawned!"
 		else
 			return false, "Failed to spawn " .. wizard_name
