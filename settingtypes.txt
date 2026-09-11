@@ -21,6 +21,10 @@ lualore_cave_castle_y_bottom (Cave castle spawn band bottom) int -1200 -31000 0
 # Carve the castle crypt (statue room + stairwell) open after placement so the
 # wizard boss group can always spawn. Turn off only for debugging.
 lualore_cave_castle_carve (Cave castle carve crypt) bool true
+lualore_cave_village (Cave castle abandoned village) bool true
+lualore_cave_village_radius (Cave castle village radius) int 46 26 80
+lualore_cave_village_houses (Cave castle village houses) int 9 3 16
+lualore_cave_village_chests (Cave castle village chests) bool true
 
 # -------------------------------------------------------------------
 # Villages (deterministic grid placement - see villagers/VILLAGE_PLACEMENT.md)

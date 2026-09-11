@@ -74,6 +74,9 @@ dofile(modpath .. "/villagers/systems/house_spawning.lua")
 dofile(modpath .. "/villagers/systems/village_commands.lua")
 dofile(modpath .. "/wizards/cave_wizards.lua")
 
+-- 4b. Abandoned villages around cave castles (sculpts the cave ground)
+dofile(modpath .. "/wizards/castle_village.lua")
+
 -- 5. Cave dwellers
 dofile(modpath .. "/caves/lit.lua")
 

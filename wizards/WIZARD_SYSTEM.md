@@ -232,3 +232,34 @@ All spells have a 2.5-second cooldown, making wizards aggressive spell casters w
   crypt carving)
 - Each wizard has unique drops making them worth hunting
 - Wizards provide a challenging boss fight when all 4 are fought together
+
+## Abandoned Village (around each castle)
+
+Every cave castle is surrounded by an abandoned village, generated
+procedurally (`wizards/castle_village.lua`):
+
+- **Terrain pass** (single VoxelManip pass): the cave ground within the
+  village radius is flattened to the castle's floor level, lower ground is
+  terraced up with rubble foundations, chasms are bridged with foundation
+  pillars, rock walls are carved back (keeping some natural pillars and the
+  cavern ceiling intact), lava pools are capped, and a worn cobble
+  ring-path is laid around the castle.
+- **Buildings** (3-16, placement is deterministic per castle): crumbling
+  houses of mossy stone with doorways facing the castle, broken windows
+  (some still glazed), partial wooden roofs, embedded glow-obsidian lamps
+  and loot chests, mixed with wall-stub ruins. A broken well, glow-obsidian
+  waypoint posts along the ring-path, rubble piles and underground fungi
+  complete the scene.
+
+Settings:
+
+- `lualore_cave_village` (bool, default true) - generate villages
+- `lualore_cave_village_radius` (int, default 46; 26-80)
+- `lualore_cave_village_houses` (int, default 9; 3-16)
+- `lualore_cave_village_chests` (bool, default true)
+
+Commands (server privilege):
+
+- `/build_castle_village [radius]` - build (or rebuild) a village around
+  the nearest recorded castle (default radius 256). Works on castles that
+  were generated before this feature existed.

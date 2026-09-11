@@ -698,6 +698,16 @@ local function place_castle(center, rot, opts)
 		carve_crypt(center, rot)
 	end
 
+	-- Abandoned village with sculpted cave ground around the castle
+	-- (castle_village.lua registers lualore.build_castle_village).
+	if opts.village ~= false and lualore.build_castle_village then
+		local ok, err = pcall(lualore.build_castle_village, center, rot, opts)
+		if not ok then
+			minetest.log("warning", "[lualore] Castle village failed at " ..
+				minetest.pos_to_string(center) .. ": " .. tostring(err))
+		end
+	end
+
 	load_castles()
 	local key = minetest.pos_to_string(center)
 	local record = castles[key]
@@ -735,6 +745,16 @@ local function place_castle(center, rot, opts)
 	return true
 end
 lualore.place_cave_castle = place_castle
+
+-- Shared helpers (used by castle_village.lua and debugging commands).
+lualore.cave_castle = {
+	get_geometry = get_geometry,
+	castle_bounds = castle_bounds,
+	get_records = function()
+		load_castles()
+		return castles
+	end,
+}
 
 -- ------------------------------------------------------------------
 -- Mapgen hook
