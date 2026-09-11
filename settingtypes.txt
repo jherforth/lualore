@@ -82,3 +82,32 @@ lualore_ruin_y_max (Ruin search band top) int 200 -31000 31000
 
 # Lower Y limit of the ruin search band (lower number = deeper).
 lualore_ruin_y_min (Ruin search band bottom) int -2 -31000 31000
+
+# -------------------------------------------------------------------
+# Obsidian door trials (see ruins/OBSIDIAN_DOORS.md)
+# -------------------------------------------------------------------
+
+# Enable broken obsidian door shrines in dry/rugged biomes. Restoring a
+# shrine with its exact original blocks awakens it and opens the way to a
+# mirror door guarded by a boss on a floating island.
+lualore_obsidian_doors (Obsidian door shrines) bool true
+
+# Grid spacing (in nodes) between shrine candidates. One candidate exists
+# per spacing x spacing area, jittered in the middle half of the cell, so
+# two shrines can never be closer together than half this value.
+lualore_door_spacing (Obsidian door spacing) int 450 200 5000
+
+# Fraction of grid cells that actually attempt to spawn a shrine (0.0 - 1.0).
+lualore_door_chance (Obsidian door spawn chance) float 0.7 0.0 1.0
+
+# Fraction of the shrine's frame blocks that start out missing (0.1 - 0.9).
+lualore_door_missing (Obsidian door missing share) float 0.5 0.1 0.9
+
+# Spawn the Mirror Sentinel boss on the floating island.
+lualore_door_boss (Obsidian door boss) bool true
+
+# Shrines are searched for between these Y levels (surface band).
+lualore_door_y_max (Obsidian door search band top) int 200 -31000 31000
+
+# Lower Y limit of the shrine search band (lower number = deeper).
+lualore_door_y_min (Obsidian door search band bottom) int -2 -31000 31000

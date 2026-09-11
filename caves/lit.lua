@@ -30,10 +30,10 @@
 	        models/lit_combined.gltf animation.standing.golbo ^
 	        animation.walking.golbo animation.mining.golbo
 
-	Size note: the Blockbench export uses raw Blockbench units (16 units
-	= 1 node); the model is 20 units tall, so visual_size 0.0625 renders
-	it at its intended height of ~1.25 nodes. Adjust VISUAL_SIZE below to
-	taste.
+	Size note: the engine renders entity meshes at 10 units per node
+	(the model is 20 units tall, so 2.0 nodes at scale 1); VISUAL_SIZE
+	0.625 brings it to its intended height of ~1.25 nodes. Adjust
+	VISUAL_SIZE below to taste.
 ]]
 
 local S = minetest.get_translator("lualore")
@@ -49,7 +49,9 @@ local ANIM = {
 	walk = {5.5, 11.25},
 	mine = {11.25, 16.75},
 }
-local VISUAL_SIZE = 0.0625 -- model is 20 units tall; 20 * 0.0625 = 1.25 nodes
+-- Entities render meshes at 10 units per node, so the 20-unit model is
+-- 2.0 nodes tall at scale 1; 0.625 gives the intended ~1.25 nodes.
+local VISUAL_SIZE = 0.625
 
 -- Combat / movement tuning
 local BURN_TIME = 4        -- seconds a fire bolt keeps burning the player

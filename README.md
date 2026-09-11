@@ -88,6 +88,17 @@ Broken castles, ruined towers, collapsed wall fragments and ancient stone circle
 
 Placement uses a deterministic grid (`lualore_ruin_spacing`, `lualore_ruin_chance` settings) and keeps a respectful distance from villages. `/spawn_ruin` builds one at your feet, `/find_ruin` locates the nearest — see `ruins/RUINS.md` for tuning and how to add your own ruin themes.
 
+### ⬛ The Obsidian Door Trials
+
+In dry, rugged lands — deserts, mesas, forsaken deserts, savannas, prairies and outbacks — you may stumble upon **ruined obsidian door shrines**: small obsidian cubes with half of their blocks missing. Each one is clearly an unfinished schematic, with a crystal still standing on top and a doorway waiting to be completed.
+
+- **Restore the shrine** with the **exact same blocks** it was built from — the missing spots must be filled with the shrine's own material (glow obsidian, obsidian or obsidian glass), and if the top crystal is among the missing blocks you will need to match its everness crystal color. The doorway reports its progress: stand close and it hums faintly, telling you how many blocks remain.
+- **Complete it and the doorway awakens.** Step up to the restored door to be carried to a floating island high above the world, where the same door stands **mirrored** — guarded by the **Mirror Sentinel**, an original flying construct of obsidian and mirror glass that fights with blinding curses.
+- **Defeat the Sentinel** and it shatters: a treasure chest (filled by the loot system) appears beside the mirror door, and the Sentinel drops its shrine's crystal plus mese and diamonds.
+- **The mirror door brings you home** to the shrine you came from. It opens once the Sentinel is gone — and never locks you out: after 45 seconds it opens regardless, so you can always leave.
+
+Shrines spawn on their own grid (`lualore_door_spacing`, `lualore_door_chance`), keep their distance from villages and only appear in the dry biome families. `/spawn_obsidian_door` builds one at your feet, `/find_obsidian_door` locates the nearest — see `ruins/OBSIDIAN_DOORS.md` for the full guide.
+
 ### 🚪 Smart Doors
 
 Village doors automatically open when NPCs approach and close after they pass through.

@@ -84,6 +84,9 @@ dofile(modpath .. "/villagers/extras/loot.lua")
 -- 6b. Procedural ruins (broken castles, towers, walls, stone circles)
 dofile(modpath .. "/ruins/ruins.lua")
 
+-- 6c. Obsidian door trials (restorable shrines; mirror door boss island)
+dofile(modpath .. "/ruins/obsidian_doors.lua")
+
 -- 7. Valkyrie and Sky Folk systems
 dofile(modpath .. "/valkyrie/valkyrie_strikes.lua")
 dofile(modpath .. "/valkyrie/sky_folk_pins.lua")
@@ -109,5 +112,5 @@ end
 -- ===================================================================
 
 minetest.log("action", "[lualore] Successfully loaded — " ..
-    "6 biomes | perfect villages | villagers | cave wizards | cave lits | procedural ruins | sky valkyries | sky folk | exploding toads")
+    "6 biomes | perfect villages | villagers | cave wizards | cave lits | procedural ruins | obsidian doors | sky valkyries | sky folk | exploding toads")
 print(S("[MOD] lualore loaded — a living world awaits you"))
