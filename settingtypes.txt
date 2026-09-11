@@ -56,3 +56,29 @@ lualore_village_y_max (Village search band top) int 200 -31000 31000
 
 # Lower Y limit of the village search band (lower number = deeper).
 lualore_village_y_min (Village search band bottom) int -2 -31000 31000
+
+# -------------------------------------------------------------------
+# Ruins (procedural broken structures - see ruins/RUINS.md)
+# -------------------------------------------------------------------
+
+# Enable automatic ruin placement in newly generated areas.
+lualore_ruins (Ruins) bool true
+
+# Grid spacing (in nodes) between ruin candidates. One candidate exists per
+# spacing x spacing area, jittered in the middle half of the cell, so two
+# ruins can never be closer together than half this value.
+# Lower = more ruins (450 = roughly one ruin per 450x450 area on average).
+lualore_ruin_spacing (Ruin spacing) int 450 200 5000
+
+# Fraction of grid cells that actually attempt to spawn a ruin (0.0 - 1.0).
+lualore_ruin_chance (Ruin spawn chance) float 0.75 0.0 1.0
+
+# Let some ruins contain treasure chests (filled with biome loot by the
+# existing loot system).
+lualore_ruin_chests (Ruin treasure chests) bool true
+
+# Ruins are searched for between these Y levels (surface band).
+lualore_ruin_y_max (Ruin search band top) int 200 -31000 31000
+
+# Lower Y limit of the ruin search band (lower number = deeper).
+lualore_ruin_y_min (Ruin search band bottom) int -2 -31000 31000

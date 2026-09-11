@@ -78,6 +78,16 @@ Each biome has unique structures: houses, churches, markets, stables and more. A
 
 Building density is controlled by settings such as `lualore_village_spacing`, `lualore_village_houses_min/max` and `lualore_village_central_chance` — see `villagers/VILLAGE_PLACEMENT.md`. In-game helpers: `/spawn_village [biome]` places one at your feet for previews, `/find_village` points you to the nearest recorded village.
 
+### 🏚️ Procedural Ruins
+
+Broken castles, ruined towers, collapsed wall fragments and ancient stone circles rise from the landscape in the six village biomes — now fully procedural, so every ruin is unique:
+
+- Walls crumble towards their tops, whole sections have collapsed, gates stand bereft of doors and rubble scatters around the foundations.
+- Ruins follow the terrain, use biome-appropriate materials (mossy stone in grasslands and jungles, sandstone in deserts and savannas, ice and snow up north, soggy stone at lake shores) and mossy flagstones show where courtyards once were.
+- Many ruins hide a treasure chest; the existing loot system fills it with biome-appropriate loot when you find it.
+
+Placement uses a deterministic grid (`lualore_ruin_spacing`, `lualore_ruin_chance` settings) and keeps a respectful distance from villages. `/spawn_ruin` builds one at your feet, `/find_ruin` locates the nearest — see `ruins/RUINS.md` for tuning and how to add your own ruin themes.
+
 ### 🚪 Smart Doors
 
 Village doors automatically open when NPCs approach and close after they pass through.
