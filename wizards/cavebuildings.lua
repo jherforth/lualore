@@ -337,10 +337,17 @@ local function footprint_ok(x, z, floor_y)
 end
 
 -- Find the first (topmost) walkable surface below Y_TOP that the castle
--- can sit on. Returns floor_y, or nil + "retry"/"none".
-local function find_castle_floor(x, z)
-	local y = Y_TOP
-	while y >= Y_BOTTOM do
+-- can sit on, scanning from `scan_top` down to `scan_bottom` (both default
+-- to the full band). The caller passes the triggering chunk's y range so
+-- the scan only ever reads terrain that is actually loaded - scanning from
+-- Y_TOP while the player is deep would hit unloaded nodes and "retry"
+-- forever.
+-- Returns floor_y, or nil + "retry"/"none".
+local function find_castle_floor(x, z, scan_top, scan_bottom)
+	scan_top = math.min(scan_top or Y_TOP, Y_TOP)
+	scan_bottom = math.max(scan_bottom or Y_BOTTOM, Y_BOTTOM)
+	local y = scan_top
+	while y >= scan_bottom do
 		local name = get_name({x = x, y = y, z = z})
 		if is_unknown_name(name) then
 			return nil, "retry"
@@ -370,6 +377,11 @@ local function find_castle_floor(x, z)
 			end
 		end
 		y = y - 1
+	end
+	if scan_bottom > Y_BOTTOM then
+		-- The deeper half of the band has not been checked yet; a later
+		-- chunk generation will trigger another scan further down.
+		return nil, "retry"
 	end
 	return nil, "none"
 end
@@ -698,6 +710,8 @@ lualore.place_cave_castle = place_castle
 -- ------------------------------------------------------------------
 if ENABLED then
 	local processed_cells = {}
+	local pending_cells = {}
+	local logged_first_scan = false
 
 	local function handle_candidate(cell_x, cell_z, minp, maxp)
 		local cell_key = cell_x .. ":" .. cell_z
@@ -717,7 +731,7 @@ if ENABLED then
 			return
 		end
 
-		local floor_y, reason = find_castle_floor(x, z)
+		local floor_y, reason = find_castle_floor(x, z, maxp.y, minp.y)
 		if floor_y then
 			processed_cells[cell_key] = true
 			local rot = ROTATIONS[(h % 4) + 1]
@@ -731,6 +745,10 @@ if ENABLED then
 					place_castle(center, rot, {source = "mapgen"})
 				elseif place_attempts < 3 then
 					minetest.after(10 * place_attempts, try_place)
+				else
+					-- Spot could not be read back in time; let a later chunk
+					-- generation pick this cell up again.
+					processed_cells[cell_key] = nil
 				end
 			end
 			minetest.after(0.5, try_place)
@@ -738,8 +756,21 @@ if ENABLED then
 			-- No suitable cave floor in this column; give up on this cell
 			processed_cells[cell_key] = true
 		else
-			-- Terrain is not generated deep enough yet; this runs again
-			-- automatically when this chunk column generates further down.
+			-- Terrain in this window is not readable/suitable yet. Try a few
+			-- times shortly after (the chunk may still be settling), and if
+			-- that fails, leave the cell undecided so a later chunk
+			-- generation (deeper, or when the player returns) picks it up.
+			local left = (pending_cells[cell_key] or 6) - 1
+			if left > 0 then
+				pending_cells[cell_key] = left
+				minetest.after(2.0, function()
+					handle_candidate(cell_x, cell_z, minp, maxp)
+				end)
+			else
+				pending_cells[cell_key] = nil
+				minetest.log("info", "[lualore] Cave castle cell " .. cell_key ..
+					" postponed (no readable floor in window yet)")
+			end
 		end
 	end
 
@@ -747,6 +778,13 @@ if ENABLED then
 		-- Cave castles only live underground
 		if maxp.y < Y_BOTTOM or minp.y > Y_TOP then
 			return
+		end
+
+		if not logged_first_scan then
+			logged_first_scan = true
+			minetest.log("action", string.format(
+				"[lualore] Cave castle scan active (chunk y %d..%d, band %d..%d)",
+				minp.y, maxp.y, Y_TOP, Y_BOTTOM))
 		end
 
 		local cell_x0 = math.floor(minp.x / SPACING)
@@ -899,5 +937,94 @@ minetest.register_chatcommand("clear_castle_records", {
 		return true, string.format("Reset wizard records for %d cave castles", count)
 	end,
 })
+
+minetest.register_chatcommand("castle_probe", {
+	params = "[radius]",
+	description = S("Diagnose cave castle placement around you (default 1000)."),
+	privs = {server = true},
+	func = function(name, param)
+		local player = minetest.get_player_by_name(name)
+		if not player then
+			return false, "Player not found."
+		end
+		local pos = player:get_pos()
+		local px, pz = math.floor(pos.x), math.floor(pos.z)
+		local radius = tonumber(param) or 1000
+		radius = math.max(100, math.min(radius, 3000))
+
+		-- Same kind of depth window the mapgen scan uses near you: a fresh
+		-- chunk triggers a scan of its own y range, not the whole band.
+		local scan_hi = math.min(Y_TOP, math.floor(pos.y) + 160)
+		local scan_lo = math.max(Y_BOTTOM, math.floor(pos.y) - 160)
+
+		local cells, cand, floor_ok, floor_none, floor_retry = 0, 0, 0, 0, 0
+		local example
+
+		local c0x = math.floor((px - radius) / SPACING) - 1
+		local c1x = math.floor((px + radius) / SPACING) + 1
+		local c0z = math.floor((pz - radius) / SPACING) - 1
+		local c1z = math.floor((pz + radius) / SPACING) + 1
+
+		for cell_x = c0x, c1x do
+			for cell_z = c0z, c1z do
+				cells = cells + 1
+				local x, z = cell_candidate(cell_x, cell_z)
+				if x then
+					local dx, dz = x - px, z - pz
+					if dx * dx + dz * dz <= radius * radius then
+						cand = cand + 1
+						local floor_y, reason = find_castle_floor(x, z, scan_hi, scan_lo)
+						if floor_y then
+							floor_ok = floor_ok + 1
+							if not example then
+								example = string.format("(%d,%d) floor y=%d", x, z, floor_y)
+							end
+						elseif reason == "none" then
+							floor_none = floor_none + 1
+						else
+							floor_retry = floor_retry + 1
+						end
+					end
+				end
+			end
+		end
+
+		local rec_count = 0
+		load_castles()
+		for _ in pairs(castles) do
+			rec_count = rec_count + 1
+		end
+
+		local my_floor, my_reason = find_castle_floor(px, pz, scan_hi, scan_lo)
+		local my_line
+		if my_floor then
+			my_line = "your column: suitable floor at y=" .. my_floor .. " (castle could sit here)"
+		elseif my_reason == "none" then
+			my_line = "your column: no suitable cave floor down to the band bottom"
+		else
+			my_line = "your column: no readable/suitable floor in this window"
+		end
+
+		local lines = {
+			string.format("[castle_probe] %s spacing=%d chance=%.2f band=%d..%d | records=%d",
+				ENABLED and "enabled" or "DISABLED", SPACING, CHANCE, Y_TOP, Y_BOTTOM, rec_count),
+			string.format("scan window here: y %d..%d", scan_hi, scan_lo),
+			my_line,
+			string.format("cells=%d candidates=%d | floorOk=%d floorNone=%d retryUnloaded=%d",
+				cells, cand, floor_ok, floor_none, floor_retry),
+		}
+		if example then
+			lines[#lines + 1] = "a castle could sit at " .. example
+		elseif cand > 0 then
+			lines[#lines + 1] = "No candidate in range has a suitable cave floor."
+		end
+		return true, table.concat(lines, "\n")
+	end,
+})
+
+-- One startup log line so the server log shows which config is live.
+minetest.log("action", string.format(
+	"[lualore] Cave castles %s: spacing=%d chance=%.2f band=%d..%d",
+	ENABLED and "enabled" or "DISABLED", SPACING, CHANCE, Y_TOP, Y_BOTTOM))
 
 print(S("[MOD] Lualore - Cave castles loaded (grid placement + crypt carving)"))

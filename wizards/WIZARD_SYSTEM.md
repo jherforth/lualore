@@ -133,6 +133,9 @@ Finds the nearest `caverealms:dm_statue` and spawns the boss group around it
 
 ### Admin Commands (server privilege)
 - `/find_castle [radius]` - locate the nearest recorded cave castle (default 512)
+- `/castle_probe [radius]` - diagnose cave castle placement around you (default
+  1000): counts candidates with a suitable cave floor vs none vs not-generated-yet,
+  and reports whether your own column could host a castle
 - `/spawn_cavecastle` - place a cave castle at your position (debug)
 - `/spawn_castle_wizards [radius]` - spawn/respawn the boss group at the nearest
   recorded castle (default 256)

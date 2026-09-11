@@ -174,6 +174,18 @@ local function get_palettes()
 	return ordered_palettes
 end
 
+-- Biome names can be namespaced ("mod:biome"). Match the full name first,
+-- then fall back to comparing the part after the ":" so a palette entry of
+-- "grassland" still matches a biome registered as "everness:grassland".
+local function biome_matches(pattern, biome)
+	if pattern == biome then
+		return true
+	end
+	local a = pattern:match(":([^:]+)$") or pattern
+	local b = biome:match(":([^:]+)$") or biome
+	return a == b
+end
+
 local function palette_for_pos(x, z)
 	local data = minetest.get_biome_data({x = x, y = 64, z = z})
 	if not data then
@@ -185,7 +197,7 @@ local function palette_for_pos(x, z)
 	end
 	for _, palette in ipairs(get_palettes()) do
 		for _, name in ipairs(palette.biomes) do
-			if name == biome then
+			if biome_matches(name, biome) then
 				return palette
 			end
 		end
@@ -534,6 +546,8 @@ end
 -- ------------------------------------------------------------------
 local tried = {}   -- cell_key -> true once resolved (built or dismissed)
 local pending = {} -- cell_key -> remaining retry budget
+local warned_biomes = {} -- biome name -> true once its "no palette" line was logged
+local logged_first_scan = false
 
 local function attempt_cell(cell_x, cell_z, minp, maxp)
 	local key = cell_x .. ":" .. cell_z
@@ -558,6 +572,13 @@ local function attempt_cell(cell_x, cell_z, minp, maxp)
 	local palette = palette_for_pos(cx, cz)
 	if not palette then
 		tried[key] = true
+		local data = minetest.get_biome_data({x = cx, y = 64, z = cz})
+		local biome = data and minetest.get_biome_name(data.biome) or "?"
+		if not warned_biomes[biome] then
+			warned_biomes[biome] = true
+			minetest.log("action", "[lualore] Villages: no palette for biome '" ..
+				biome .. "' (first seen at " .. cx .. "," .. cz .. ")")
+		end
 		return
 	end
 
@@ -598,6 +619,13 @@ if ENABLED then
 		end
 		if maxp.y < Y_MIN or minp.y > Y_MAX then
 			return
+		end
+
+		if not logged_first_scan then
+			logged_first_scan = true
+			minetest.log("action", string.format(
+				"[lualore] Village scan active (chunk y %d..%d, %d palettes)",
+				minp.y, maxp.y, #get_palettes()))
 		end
 
 		-- Cells whose jittered candidate can fall inside this chunk
@@ -714,3 +742,145 @@ minetest.register_chatcommand("clear_village_records", {
 		return true, "Cleared " .. count .. " village records."
 	end,
 })
+
+minetest.register_chatcommand("village_probe", {
+	params = "[radius]",
+	description = S("Diagnose village placement around you (default 1000)."),
+	privs = {server = true},
+	func = function(name, param)
+		local player = minetest.get_player_by_name(name)
+		if not player then
+			return false, "Player not found."
+		end
+		local pos = player:get_pos()
+		local px, pz = math.floor(pos.x), math.floor(pos.z)
+		local radius = tonumber(param) or 1000
+		radius = math.max(100, math.min(radius, 3000))
+
+		local stats = {cells = 0, cand = 0, no_palette = 0, no_floor = 0,
+			retry = 0, center_bad = 0, area_bad = 0, ok = 0}
+		local biomes, unmatched, examples = {}, {}, {}
+
+		local c0x = math.floor((px - radius) / SPACING) - 1
+		local c1x = math.floor((px + radius) / SPACING) + 1
+		local c0z = math.floor((pz - radius) / SPACING) - 1
+		local c1z = math.floor((pz + radius) / SPACING) + 1
+
+		for cell_x = c0x, c1x do
+			for cell_z = c0z, c1z do
+				stats.cells = stats.cells + 1
+				local cx, cz = cell_candidate(cell_x, cell_z)
+				if cx then
+					local dx, dz = cx - px, cz - pz
+					if dx * dx + dz * dz <= radius * radius then
+						stats.cand = stats.cand + 1
+						local data = minetest.get_biome_data({x = cx, y = 64, z = cz})
+						local biome = data and minetest.get_biome_name(data.biome) or "<nil>"
+						biomes[biome] = true
+						local palette = palette_for_pos(cx, cz)
+						if not palette then
+							stats.no_palette = stats.no_palette + 1
+							unmatched[biome] = true
+						else
+							local top, bottom = palette_window(palette)
+							local floor_y, err = nil, "none"
+							if top then
+								floor_y, err = find_floor(cx, cz, top, bottom)
+							end
+							if err == "retry" then
+								stats.retry = stats.retry + 1
+							elseif not floor_y then
+								stats.no_floor = stats.no_floor + 1
+							else
+								local cok = center_ok(cx, cz, floor_y, palette)
+								if cok == "retry" then
+									stats.retry = stats.retry + 1
+								elseif not cok then
+									stats.center_bad = stats.center_bad + 1
+								else
+									local aok = area_ok(cx, cz, floor_y, palette, top, bottom)
+									if aok == "retry" then
+										stats.retry = stats.retry + 1
+									elseif not aok then
+										stats.area_bad = stats.area_bad + 1
+									else
+										stats.ok = stats.ok + 1
+										if #examples < 3 then
+											examples[#examples + 1] = string.format(
+												"(%d,%d) %s y=%d", cx, cz, palette.name, floor_y)
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+
+		local record_count = 0
+		for _ in pairs(load_records()) do
+			record_count = record_count + 1
+		end
+
+		local function key_list(t)
+			local out = {}
+			for key in pairs(t) do
+				out[#out + 1] = tostring(key)
+			end
+			table.sort(out)
+			return out
+		end
+
+		local my_data = minetest.get_biome_data({x = px, y = 64, z = pz})
+		local my_biome = my_data and minetest.get_biome_name(my_data.biome) or "<nil>"
+		local my_palette = palette_for_pos(px, pz)
+		local my_line
+		if my_palette then
+			local top, bottom = palette_window(my_palette)
+			local floor_y, err = nil, "none"
+			if top then
+				floor_y, err = find_floor(px, pz, top, bottom)
+			end
+			my_line = string.format("your column: biome=%s palette=%s floor=%s",
+				my_biome, my_palette.name,
+				floor_y and tostring(floor_y) or (err == "retry" and "unloaded" or "none"))
+		else
+			my_line = "your column: biome=" .. my_biome .. " -> NO PALETTE for this biome"
+		end
+
+		local lines = {
+			string.format("[village_probe] %s spacing=%d chance=%.2f records=%d",
+				ENABLED and "enabled" or "DISABLED", SPACING, CHANCE, record_count),
+			my_line,
+			string.format("cells=%d candidates=%d | noPalette=%d noFloor=%d retry=%d centerBad=%d areaBad=%d BUILDABLE=%d",
+				stats.cells, stats.cand, stats.no_palette, stats.no_floor,
+				stats.retry, stats.center_bad, stats.area_bad, stats.ok),
+			"biomes at candidates: " .. table.concat(key_list(biomes), ", "),
+		}
+		local un = key_list(unmatched)
+		if #un > 0 then
+			lines[#lines + 1] = "NO PALETTE for: " .. table.concat(un, ", ")
+		end
+		if #examples > 0 then
+			lines[#lines + 1] = "would build at: " .. table.concat(examples, " | ")
+		elseif stats.cand > 0 then
+			lines[#lines + 1] = "No candidate in range would build right now."
+		end
+		return true, table.concat(lines, "\n")
+	end,
+})
+
+-- One startup log line so the server log shows which config is live.
+do
+	local palette_names = {}
+	for key in pairs(lualore.village_palettes) do
+		palette_names[#palette_names + 1] = key
+	end
+	table.sort(palette_names)
+	minetest.log("action", string.format(
+		"[lualore] Villages %s: spacing=%d chance=%.2f band=%d..%d, palettes: %s",
+		ENABLED and "enabled" or "DISABLED", SPACING, CHANCE, Y_MIN, Y_MAX,
+		#palette_names > 0 and table.concat(palette_names, ", ")
+			or "NONE - village building files did not load!"))
+end

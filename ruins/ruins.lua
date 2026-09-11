@@ -220,6 +220,17 @@ local function get_themes()
 	return ordered_themes
 end
 
+-- Biome names can be namespaced ("mod:biome"); match the full name first,
+-- then the part after the ":" so "grassland" also matches "everness:grassland".
+local function biome_matches(pattern, biome)
+	if pattern == biome then
+		return true
+	end
+	local a = pattern:match(":([^:]+)$") or pattern
+	local b = biome:match(":([^:]+)$") or biome
+	return a == b
+end
+
 local function theme_for_pos(x, z)
 	local data = minetest.get_biome_data({x = x, y = 64, z = z})
 	if not data then
@@ -231,7 +242,7 @@ local function theme_for_pos(x, z)
 	end
 	for _, theme in ipairs(get_themes()) do
 		for _, name in ipairs(theme.biomes) do
-			if name == biome then
+			if biome_matches(name, biome) then
 				return theme
 			end
 		end

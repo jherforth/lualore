@@ -61,6 +61,10 @@ Tuning recipes:
 - **Fewer fancy buildings:** lower `lualore_village_central_chance`.
 - Settings apply to **newly generated chunks** only. Use `/spawn_village`
   to preview changes immediately.
+- If you see no villages at all, run `/village_probe` and check the startup
+  log line `[lualore] Villages enabled: ... palettes: ...`. Both tell you
+  whether the driver is live, what biome you are in, and where placement
+  stops. Already-generated terrain never gets retroactive villages.
 
 ## Commands
 
@@ -68,6 +72,7 @@ Tuning recipes:
 | --- | --- | --- |
 | `/spawn_village [palette]` | server | Builds a village at your position right now (palette = grassland, desert, ice, jungle, lake, savanna; guessed from the biome if omitted). |
 | `/find_village [radius]` | — | Nearest recorded village (default radius 512). |
+| `/village_probe [radius]` | server | Diagnoses placement around you (default radius 1000): shows your biome vs palette, and counts candidates that fail at each stage (no palette / no floor / unloaded / not flat) vs how many would build. |
 | `/clear_village_records` | server | Forgets placement records (does not remove built villages). |
 | `/populate_village [radius]` | server | Existing bed-based villager repopulation (unchanged). |
 
