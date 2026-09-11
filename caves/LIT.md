@@ -131,3 +131,32 @@ Stats: 16–24 HP, armor 50, collisionbox 0.6×1.0.
 2. Punch it: it either attacks with fire bolts (watch the burn damage) or
    runs; chase it against a wall to watch it burrow down.
 3. Kill it: expect a torch, coal and flint.
+
+## Texture maintenance (important when editing the skin)
+
+The model's uv rectangles overlap 1-pixel transparent seams in the atlas;
+faces that sample those texels render with *invisible* pixels (gaps),
+regardless of the RGB colour behind them, because alpha = 0 skips the pixel
+entirely. After editing `textures/lit.png` in any image editor, re-heal the
+seams:
+
+```
+python tools/dilate_texture.py textures/lit.png textures/lit.png 3
+```
+
+The tool only writes into fully transparent texels (using the neighbouring
+skin colours), so painted pixels are never modified. When drawing new skin
+by hand, leave a 1-pixel padding around every patch instead.
+
+Helper tools (run from the mod root, Pillow required):
+
+```
+python tools/preview_gltf.py models/lit_combined.gltf textures/lit.png tools/lit_preview.png
+python tools/lit_skin_audit.py models/lit_combined.gltf
+python tools/atlas_peek.py textures/lit.png
+```
+
+`preview_gltf.py` renders front/side/back views and paints any pixel that
+samples a transparent texel in magenta; `lit_skin_audit.py` welds the mesh
+and checks for holes, bad UVs and transparent sampling; `atlas_peek.py`
+prints an ASCII alpha map of a texture.
