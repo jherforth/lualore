@@ -50,7 +50,16 @@ Deep underground, cave castles generate at regular intervals (roughly every 400 
 
 Defeat them to obtain their magical wands, which grant you powerful abilities. Each wand type has unique magical properties for combat and exploration.
 
-### 🛡️ Valkyries & Sky Folk
+### �️ The Lit — Cave Wanderers
+
+A lone flame creature wanders the deep caves, carrying its own soft glow wherever it goes. Lits are fairly common down there, and completely passive — they ignore players until attacked. Strike one, though, and it rolls its personality (50/50):
+
+- **Fight** — chases you and hurls fire bolts that set you ablaze for a few seconds. Badly wounded, it panics and switches to flight.
+- **Flight** — runs away; when cornered or chased too closely it drills straight down through the floor to escape into a deeper cavern.
+
+Defeated Lits drop a **torch**, **coal** and **flint**. See `caves/LIT.md` for details and tuning.
+
+### �🛡️ Valkyries & Sky Folk
 
 High above the clouds, floating sky villages hold an ancient secret. Valkyries of four colors guard imprisoned Sky Folk:
 

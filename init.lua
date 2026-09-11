@@ -70,6 +70,9 @@ dofile(modpath .. "/villagers/systems/house_spawning.lua")
 dofile(modpath .. "/villagers/systems/village_commands.lua")
 dofile(modpath .. "/wizards/cave_wizards.lua")
 
+-- 5. Cave dwellers
+dofile(modpath .. "/caves/lit.lua")
+
 -- 6. Optional/fun extras
 dofile(modpath .. "/villagers/extras/explodingtoad.lua")
 dofile(modpath .. "/villagers/extras/loot.lua")
@@ -99,5 +102,5 @@ end
 -- ===================================================================
 
 minetest.log("action", "[lualore] Successfully loaded — " ..
-    "6 biomes | perfect villages | villagers | cave wizards | sky valkyries | sky folk | exploding toads")
+    "6 biomes | perfect villages | villagers | cave wizards | cave lits | sky valkyries | sky folk | exploding toads")
 print(S("[MOD] lualore loaded — a living world awaits you"))
