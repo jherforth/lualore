@@ -14,8 +14,15 @@ lualore.village_palettes.lake = {
 		"coniferous_forest_ocean",
 		"deciduous_forest_ocean",
 		"swamp_shore",
+		"swamp",
+		"marsh",
+		"naturalbiomes:alderswamp",
 	},
-	surface = {"default:dirt", "default:sand", "default:clay"},
+	surface = {
+		"default:dirt", "default:sand", "default:clay",
+		"default:dirt_with_grass",             -- swamp, marsh
+		"naturalbiomes:alderswamp_litter",     -- alder swamp
+	},
 	offset = 0,      -- stilts are part of the schematics
 	water_ok = true, -- houses may stand in shallow water
 	y_min = -2,

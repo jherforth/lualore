@@ -150,7 +150,10 @@ function lualore.register_ruin_theme(name, def)
 end
 
 lualore.register_ruin_theme("grassland", {
-	biomes = {"grassland", "grassytwo"},
+	biomes = {
+		"grassland", "grassytwo", "deciduous_forest", "coniferous_forest",
+		"grove", "dorwinion", "naturalbiomes:mediterranean", "naturalbiomes:heath",
+	},
 	wall = {"default:stonebrick", "default:mossycobble", "default:stonebrick"},
 	floor = {"default:stonebrick", "default:cobble", "default:mossycobble"},
 	rubble = {"default:cobble", "default:mossycobble", "default:gravel"},
@@ -158,7 +161,7 @@ lualore.register_ruin_theme("grassland", {
 })
 
 lualore.register_ruin_theme("desert", {
-	biomes = {"desert", "mesa", "everness:forsaken_desert"},
+	biomes = {"desert", "mesa", "sandstone_desert", "badland", "everness:forsaken_desert"},
 	wall = {"default:desert_sandstone_brick", "default:sandstonebrick", "default:desert_sandstone"},
 	floor = {"default:desert_sandstone_block", "default:desert_sandstone_brick", "default:sandstonebrick"},
 	rubble = {"default:desert_cobble", "default:sand", "default:desert_sand"},
@@ -166,7 +169,10 @@ lualore.register_ruin_theme("desert", {
 })
 
 lualore.register_ruin_theme("savanna", {
-	biomes = {"savanna", "prarie", "naturalbiomes:outback"},
+	biomes = {
+		"savanna", "prarie", "prairie", "plains",
+		"naturalbiomes:outback", "naturalbiomes:bushland",
+	},
 	wall = {"default:sandstonebrick", "default:desert_sandstone_brick", "default:sandstone"},
 	floor = {"default:sandstonebrick", "default:sandstone"},
 	rubble = {"default:sandstone", "default:desert_cobble", "default:dry_dirt"},
@@ -174,7 +180,10 @@ lualore.register_ruin_theme("savanna", {
 })
 
 lualore.register_ruin_theme("ice", {
-	biomes = {"icesheet", "icesheet_ocean"},
+	biomes = {
+		"icesheet", "icesheet_ocean", "glacier", "frost_land", "tundra",
+		"tundra_highland", "frost", "everness:forsaken_tundra", "everness:frosted_icesheet",
+	},
 	wall = {"default:stonebrick", "default:ice", "default:snowblock"},
 	floor = {"default:stonebrick", "default:ice"},
 	rubble = {"default:snowblock", "default:ice", "default:gravel"},
@@ -182,7 +191,10 @@ lualore.register_ruin_theme("ice", {
 })
 
 lualore.register_ruin_theme("jungle", {
-	biomes = {"rainforest", "rainforest_swamp"},
+	biomes = {
+		"rainforest", "rainforest_swamp", "bamboo", "everness:bamboo_forest",
+		"japaneseforest", "livingjungle:jungle",
+	},
 	wall = {"default:mossycobble", "default:stonebrick", "default:junglewood"},
 	floor = {"default:mossycobble", "default:cobble"},
 	rubble = {"default:cobble", "default:mossycobble", "default:junglewood"},
@@ -196,6 +208,9 @@ lualore.register_ruin_theme("lake", {
 		"coniferous_forest_ocean",
 		"deciduous_forest_ocean",
 		"swamp_shore",
+		"swamp",
+		"marsh",
+		"naturalbiomes:alderswamp",
 	},
 	water_ok = true, -- sunken ruins are fine at lake shores
 	wall = {"default:mossycobble", "default:cobble"},

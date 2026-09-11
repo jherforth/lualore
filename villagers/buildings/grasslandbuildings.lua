@@ -8,8 +8,18 @@ lualore.village_palettes = lualore.village_palettes or {}
 
 lualore.village_palettes.grassland = {
 	name = "grassland",
-	biomes = {"grassland", "grassytwo"},
-	surface = {"default:dirt_with_grass", "default:dirt_with_coniferous_litter"},
+	biomes = {
+		"grassland", "grassytwo", "deciduous_forest", "coniferous_forest",
+		"grove", "dorwinion", "naturalbiomes:mediterranean", "naturalbiomes:heath",
+	},
+	surface = {
+		"default:dirt_with_grass",             -- grassland, grassytwo, deciduous
+		"default:dirt_with_coniferous_litter", -- coniferous forest
+		"ethereal:grove_dirt",                 -- grove
+		"dorwinion:dorwinion_grass",           -- dorwinion
+		"naturalbiomes:mediterran_litter",     -- mediterranean
+		"naturalbiomes:heath_litter",          -- heath
+	},
 	offset = -6, -- schematic base is sunk 6 nodes into the ground (foundation)
 	houses = {
 		"grasslandhouse1.mts",

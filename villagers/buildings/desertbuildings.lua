@@ -8,8 +8,13 @@ lualore.village_palettes = lualore.village_palettes or {}
 
 lualore.village_palettes.desert = {
 	name = "desert",
-	biomes = {"desert", "mesa", "everness:forsaken_desert"},
-	surface = {"default:desert_sand", "default:sand"},
+	biomes = {"desert", "mesa", "sandstone_desert", "badland", "everness:forsaken_desert"},
+	surface = {
+		"default:desert_sand", "default:sand",
+		"default:dirt_with_dry_grass",        -- mesa
+		"badland:badland_grass",             -- badland
+		"everness:forsaken_desert_sand",     -- forsaken desert
+	},
 	offset = -6, -- schematic base is sunk 6 nodes into the ground (foundation)
 	houses = {
 		"deserthouse1.mts",

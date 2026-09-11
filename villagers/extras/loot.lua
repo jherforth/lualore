@@ -66,18 +66,30 @@ local function get_loot_table_for_biome(pos)
     local biome_name = minetest.get_biome_name(biome_data.biome)
     if not biome_name then return nil end
 
-    -- "grass" (not "grassland") so renamed grass biomes like "grassytwo" still match
-    if biome_name:find("grass") or biome_name:find("deciduous") or biome_name:find("coniferous") then
+    -- Substring matching so renamed/namespaced biomes still map (the full
+    -- game biome list lives in the asuna_core biomes table).
+    if biome_name:find("grass") or biome_name:find("deciduous")
+            or biome_name:find("coniferous") or biome_name:find("grove")
+            or biome_name:find("dorwinion") or biome_name:find("mediterran")
+            or biome_name:find("heath") then
         return loot_tables.grassland
-    elseif biome_name:find("desert") then
+    elseif biome_name:find("desert") or biome_name:find("mesa")
+            or biome_name:find("badland") then
         return loot_tables.desert
-    elseif biome_name:find("icesheet") or biome_name:find("tundra") then
+    elseif biome_name:find("icesheet") or biome_name:find("tundra")
+            or biome_name:find("glacier") or biome_name:find("frost")
+            or biome_name:find("permafrost") then
         return loot_tables.ice
-    elseif biome_name:find("savanna") then
+    elseif biome_name:find("savanna") or biome_name:find("outback")
+            or biome_name:find("prairie") or biome_name:find("prarie")
+            or biome_name:find("plains") or biome_name:find("bushland") then
         return loot_tables.savanna
-    elseif biome_name:find("rainforest") then
+    elseif biome_name:find("rainforest") or biome_name:find("jungle")
+            or biome_name:find("bamboo") or biome_name:find("japanese") then
         return loot_tables.jungle
-    elseif biome_name:find("lake") or biome_name:find("shore") then
+    elseif biome_name:find("lake") or biome_name:find("shore")
+            or biome_name:find("swamp") or biome_name:find("marsh")
+            or biome_name:find("ocean") then
         return loot_tables.lake
     end
 
