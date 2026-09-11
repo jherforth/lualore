@@ -1,8 +1,8 @@
 --[[
 	caves/lit.lua
 
-	"The Lit" - a lone, wandering flame creature found deep in the caves.
-	Common enough that you will run across them while exploring.
+	"The Lit" - a lone, wandering flame creature found in caves at almost
+	any depth. Common enough that you will run across them while exploring.
 
 	Behavior:
 	  * Passive until attacked. It ignores everything until it is hurt.
@@ -1029,28 +1029,29 @@ mobs:register_mob("lualore:lit", {
 })
 
 -- ------------------------------------------------------------------
--- Spawning: fairly common deep underground, in the dark
+-- Spawning: fairly common, in just about any cave
 -- ------------------------------------------------------------------
 
 if not mobs.custom_spawn_lualore then
 	mobs:spawn({
 		name = "lualore:lit",
+		-- Broad node groups so a Lit can turn up on almost any natural
+		-- underground surface in any game or biome, plus explicit cave
+		-- biome floors in case those use custom groups.
 		nodes = {
-			"default:stone", "default:cobble", "default:mossycobble",
-			"default:desert_stone", "default:desert_stone_block",
-			"default:desert_cobble", "default:sandstone",
-			"default:desert_sandstone", "default:silver_sandstone_block",
+			"group:stone", "group:cobble", "group:cracky",
+			"group:crumbly", "group:sandstone",
 			"caverealms:stone_with_moss", "caverealms:stone_with_lichen",
 			"caverealms:stone_with_algae",
 			"everness:mineral_cave_stone", "everness:crystal_stone",
 		},
 		min_light = 0,
-		max_light = 8,
-		interval = 20,
-		chance = 800,
-		active_object_count = 2,
-		min_height = -1500,
-		max_height = -20,
+		max_light = 12, -- any dim or torch-lit cave counts
+		interval = 15,
+		chance = 500,
+		active_object_count = 3,
+		min_height = -31000, -- any depth
+		max_height = -8,      -- shallow tunnels included
 	})
 end
 

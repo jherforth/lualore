@@ -1,6 +1,6 @@
 # 🕯️ The Lit — Cave Wanderer
 
-A lone flame creature that haunts the deep caves. It carries its own
+A lone flame creature that haunts caves at almost any depth. It carries its own
 illumination, is completely passive until attacked, and reacts to danger with
 one of two personalities: **fight** or **flight**.
 
@@ -22,12 +22,15 @@ flame) so you will see its light before you see its face.
 
 ## Spawning
 
-- Fairly common deep underground: height band `-1500 .. -20`, light ≤ 8,
-  up to 2 per area, roughly checked every 20 seconds per player
-  (`mobs:spawn` chance 800).
-- Spawns on cave floors: stone, cobble, mossycobble, desert/sandstone
-  variants, caverealms moss/lichen/algae stone and everness mineral cave
-  stone.
+- Fairly common in **just about any cave**: any depth (height band
+  `-31000 .. -8`, so shallow tunnels count too), light ≤ 12 (any dim or
+  torch-lit cave), up to 3 per area, checked roughly every 15 seconds per
+  player (`mobs:spawn` chance 500).
+- Spawns on almost any natural underground surface via node groups —
+  `group:stone`, `group:cobble`, `group:cracky`, `group:crumbly`,
+  `group:sandstone` — plus explicit caverealms moss/lichen/algae stone and
+  everness mineral cave stone entries for games where those use custom
+  groups.
 - If a `spawn.lua` file exists at the mod root, automatic spawning is skipped
   (same convention as all other mobs in this mod).
 - Spawn egg: **"Lit"** (uses `alit.png`).

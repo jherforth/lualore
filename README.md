@@ -52,7 +52,7 @@ Defeat them to obtain their magical wands, which grant you powerful abilities. E
 
 ### �️ The Lit — Cave Wanderers
 
-A lone flame creature wanders the deep caves, carrying its own soft glow wherever it goes. Lits are fairly common down there, and completely passive — they ignore players until attacked. Strike one, though, and it rolls its personality (50/50):
+A lone flame creature wanders the caves, carrying its own soft glow wherever it goes. Lits are fairly common — just about any cave can have one — and completely passive: they ignore players until attacked. Strike one, though, and it rolls its personality (50/50):
 
 - **Fight** — chases you and hurls fire bolts that set you ablaze for a few seconds. Badly wounded, it panics and switches to flight.
 - **Flight** — runs away; when cornered or chased too closely it drills straight down through the floor to escape into a deeper cavern.
