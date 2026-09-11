@@ -8,7 +8,7 @@ lualore.village_palettes = lualore.village_palettes or {}
 
 lualore.village_palettes.grassland = {
 	name = "grassland",
-	biomes = {"grassland"},
+	biomes = {"grassland", "grassytwo"},
 	surface = {"default:dirt_with_grass", "default:dirt_with_coniferous_litter"},
 	offset = -6, -- schematic base is sunk 6 nodes into the ground (foundation)
 	houses = {

@@ -760,6 +760,7 @@ minetest.register_chatcommand("village_probe", {
 		local stats = {cells = 0, cand = 0, no_palette = 0, no_floor = 0,
 			retry = 0, center_bad = 0, area_bad = 0, ok = 0}
 		local biomes, unmatched, examples = {}, {}, {}
+		local center_nodes = {}
 
 		local c0x = math.floor((px - radius) / SPACING) - 1
 		local c1x = math.floor((px + radius) / SPACING) + 1
@@ -797,6 +798,8 @@ minetest.register_chatcommand("village_probe", {
 									stats.retry = stats.retry + 1
 								elseif not cok then
 									stats.center_bad = stats.center_bad + 1
+									local floor_node = get_name({x = cx, y = floor_y, z = cz})
+									center_nodes[floor_node] = (center_nodes[floor_node] or 0) + 1
 								else
 									local aok = area_ok(cx, cz, floor_y, palette, top, bottom)
 									if aok == "retry" then
@@ -861,6 +864,14 @@ minetest.register_chatcommand("village_probe", {
 		local un = key_list(unmatched)
 		if #un > 0 then
 			lines[#lines + 1] = "NO PALETTE for: " .. table.concat(un, ", ")
+		end
+		local node_bits = {}
+		for node_name, count in pairs(center_nodes) do
+			node_bits[#node_bits + 1] = string.format("%s(x%d)", node_name, count)
+		end
+		table.sort(node_bits)
+		if #node_bits > 0 then
+			lines[#lines + 1] = "rejected center nodes: " .. table.concat(node_bits, ", ")
 		end
 		if #examples > 0 then
 			lines[#lines + 1] = "would build at: " .. table.concat(examples, " | ")

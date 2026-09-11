@@ -150,7 +150,7 @@ function lualore.register_ruin_theme(name, def)
 end
 
 lualore.register_ruin_theme("grassland", {
-	biomes = {"grassland"},
+	biomes = {"grassland", "grassytwo"},
 	wall = {"default:stonebrick", "default:mossycobble", "default:stonebrick"},
 	floor = {"default:stonebrick", "default:cobble", "default:mossycobble"},
 	rubble = {"default:cobble", "default:mossycobble", "default:gravel"},

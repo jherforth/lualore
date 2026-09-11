@@ -100,6 +100,12 @@ existing `houses` list).
 
 ## Notes
 
+- A palette can list several biome names, and namespaced names match their
+  last segment (`"grassland"` also matches `everness:grassland`). If your
+  game renames a biome (for example `grassland` -> `grassytwo`), add the new
+  name to the relevant `biomes` list. The server log prints
+  `[lualore] Villages: no palette for biome 'X'` the first time an
+  unrecognized biome gets a candidate, so renames never fail silently.
 - Already-generated terrain keeps whatever it had before this system (old
   decoration buildings stay where they are); the new placer only affects
   newly generated chunks.

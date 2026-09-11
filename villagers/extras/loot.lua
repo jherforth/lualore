@@ -66,7 +66,8 @@ local function get_loot_table_for_biome(pos)
     local biome_name = minetest.get_biome_name(biome_data.biome)
     if not biome_name then return nil end
 
-    if biome_name:find("grassland") or biome_name:find("deciduous") or biome_name:find("coniferous") then
+    -- "grass" (not "grassland") so renamed grass biomes like "grassytwo" still match
+    if biome_name:find("grass") or biome_name:find("deciduous") or biome_name:find("coniferous") then
         return loot_tables.grassland
     elseif biome_name:find("desert") then
         return loot_tables.desert

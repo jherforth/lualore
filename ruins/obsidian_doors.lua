@@ -208,6 +208,17 @@ end
 -- Biome gate: dry / rugged ruins themes only
 -- (desert, mesa, forsaken desert + savanna, prarie, outback)
 -- ------------------------------------------------------------------
+-- Biome names can be namespaced ("mod:biome"); match the full name first,
+-- then the part after the ":" so "desert" also matches "everness:desert".
+local function biome_matches(pattern, biome)
+	if pattern == biome then
+		return true
+	end
+	local a = pattern:match(":([^:]+)$") or pattern
+	local b = biome:match(":([^:]+)$") or biome
+	return a == b
+end
+
 local function theme_for_pos(x, z)
 	if not (lualore.ruins and lualore.ruins.get_themes) then
 		return nil
@@ -223,7 +234,7 @@ local function theme_for_pos(x, z)
 	for _, theme in ipairs(lualore.ruins.get_themes()) do
 		if DRY_THEMES[theme.name] then
 			for _, name in ipairs(theme.biomes) do
-				if name == biome then
+				if biome_matches(name, biome) then
 					return theme
 				end
 			end
