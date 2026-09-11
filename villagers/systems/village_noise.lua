@@ -1,5 +1,9 @@
 -- village_noise.lua
--- ONE global village noise — makes villages truly rare worldwide
+-- LEGACY: village placement no longer uses noise-based decorations
+-- (see systems/village_placement.lua). These tables are kept only for
+-- compatibility with anything that still references lualore.global_*.
+-- Original purpose: "ONE global village noise - makes villages truly rare
+-- worldwide".
 
 lualore = lualore or {}
 

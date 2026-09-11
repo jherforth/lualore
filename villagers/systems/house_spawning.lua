@@ -61,7 +61,7 @@ load_beds()
 
 -- Main villager spawning on chunk generation
 minetest.register_on_generated(function(minp, maxp, blockseed)
-    minetest.after(5, function()  -- Let schematics finish placing
+    minetest.after(8, function()  -- let village placement finish first (it can retry for a few seconds)
         local ymin = math.max(minp.y, -10)
         local ymax = math.min(maxp.y, 80)
         local search_min = {x = minp.x, y = ymin, z = minp.z}

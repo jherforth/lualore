@@ -1,74 +1,28 @@
-local S = minetest.get_translator("lualore")
+-- icebuildings.lua
+-- Village palette for ice sheet biomes.
+-- The actual placement logic lives in systems/village_placement.lua;
+-- this file only describes WHAT can be built here.
 
--- utils.lua is loaded only in init.lua → no need here
--- (delete the dofile line if still present)
+lualore = lualore or {}
+lualore.village_palettes = lualore.village_palettes or {}
 
-local village_noise = lualore.global_village_noise
-local central_noise = lualore.global_central_noise
-
--- ===================================================================
--- Regular ice houses
--- ===================================================================
-local function register_ice_building(params)
-    minetest.register_decoration({
-        name = "lualore:" .. params.name,
-        deco_type = "schematic",
-        place_on = {"default:snowblock", "default:ice"},
-        sidelen = 34,                       -- consistent with desert/grassland
-        noise_params = village_noise,
-        biomes = {"icesheet", "icesheet_ocean"},  -- also allows coastal ice villages
-        y_min = -1,
-        y_max = 40,
-
-        -- THE THREE MAGIC LINES (identical to every other biome)
-        place_offset_y = -6,
-        flags = "place_center_x, place_center_z",
-        height = 0,
-        height_max = 0,
-
-        schematic = minetest.get_modpath("lualore") .. "/schematics/" .. params.file,
-        rotation = "random",
-    })
-end
-
--- ===================================================================
--- Central / rare ice buildings
--- ===================================================================
-local function register_ice_central(params)
-    minetest.register_decoration({
-        name = "lualore:" .. params.name,
-        deco_type = "schematic",
-        place_on = {"default:snowblock", "default:ice"},
-        sidelen = 42,                       -- slightly larger grid for rare buildings
-        noise_params = central_noise,
-        biomes = {"icesheet", "icesheet_ocean"},
-        y_min = -1,
-        y_max = 40,
-
-        place_offset_y = -6,
-        flags = "place_center_x, place_center_z",
-        height = 0,
-        height_max = 0,
-
-        schematic = minetest.get_modpath("lualore") .. "/schematics/" .. params.file,
-        rotation = "random",
-    })
-end
-
--- ===================================================================
--- REGISTER ALL ICE BUILDINGS
--- ===================================================================
-
--- Regular houses
-register_ice_building({name = "icehouse1", file = "icehouse1.mts"})
-register_ice_building({name = "icehouse2", file = "icehouse2.mts"})
-register_ice_building({name = "icehouse3", file = "icehouse3.mts"})
-register_ice_building({name = "icehouse4", file = "icehouse4.mts"})
-
--- Central / rare buildings
-register_ice_central({name = "icechurch",  file = "icechurch.mts"})
-register_ice_central({name = "icemarket",  file = "icemarket.mts"})
-register_ice_central({name = "icestable",  file = "icestable.mts"})
+lualore.village_palettes.ice = {
+	name = "ice",
+	biomes = {"icesheet", "icesheet_ocean"},
+	surface = {"default:snowblock", "default:ice"},
+	offset = -6, -- schematic base is sunk 6 nodes into the ground (foundation)
+	y_min = -1,
+	y_max = 40,
+	houses = {
+		"icehouse1.mts",
+		"icehouse2.mts",
+		"icehouse3.mts",
+		"icehouse4.mts",
+	},
+	church = "icechurch.mts",
+	market = "icemarket.mts",
+	stable = "icestable.mts",
+}
 
 
 

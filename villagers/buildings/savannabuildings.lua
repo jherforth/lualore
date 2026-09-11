@@ -1,72 +1,26 @@
-local S = minetest.get_translator("lualore")
+-- savannabuildings.lua
+-- Village palette for savanna biomes.
+-- The actual placement logic lives in systems/village_placement.lua;
+-- this file only describes WHAT can be built here.
 
--- utils.lua loaded only in init.lua → clean and safe
+lualore = lualore or {}
+lualore.village_palettes = lualore.village_palettes or {}
 
-local village_noise = lualore.global_village_noise
-local central_noise = lualore.global_central_noise
-
--- ===================================================================
--- Regular savanna houses
--- ===================================================================
-local function register_savanna_building(params)
-    minetest.register_decoration({
-        name = "lualore:" .. params.name,
-        deco_type = "schematic",
-        place_on = {"default:dry_dirt_with_dry_grass","naturalbiomes:outback_litter"},
-        sidelen = 50,                          -- consistent with all other biomes
-        noise_params = village_noise,
-        biomes = {"savanna","prarie","naturalbiomes:outback"},
-        y_min = 1,
-        y_max = 2040,                           -- savannas can climb high!
-
-        place_offset_y = -6,
-        flags = "place_center_x, place_center_z, force_placement, all_floors",
-        height = 0,
-        height_max = 0,
-
-        schematic = minetest.get_modpath("lualore") .. "/schematics/" .. params.file,
-        rotation = "random",
-    })
-end
-
--- ===================================================================
--- Central / epic savanna buildings (big church, market, chief's hut)
--- ===================================================================
-local function register_savanna_central(params)
-    minetest.register_decoration({
-        name = "lualore:" .. params.name,
-        deco_type = "schematic",
-        place_on = {"default:dry_dirt_with_dry_grass","naturalbiomes:outback_litter"},
-        sidelen = 58,                          -- rare, proud structures
-        noise_params = central_noise,
-        biomes = {"savanna","prarie","naturalbiomes:outback"},
-        y_min = 1,
-        y_max = 2040,
-
-        place_offset_y = -6,
-        flags = "place_center_x, place_center_z, force_placement, all_floors",
-        height = 0,
-        height_max = 0,
-
-        schematic = minetest.get_modpath("lualore") .. "/schematics/" .. params.file,
-        rotation = "random",
-    })
-end
-
--- ===================================================================
--- REGISTER ALL SAVANNA STRUCTURES
--- ===================================================================
-
--- Regular houses
-register_savanna_building({name = "savannahouse1", file = "savannahouse1.mts"})
-register_savanna_building({name = "savannahouse2", file = "savannahouse2.mts"})
-register_savanna_building({name = "savannahouse3", file = "savannahouse3.mts"})
-register_savanna_building({name = "savannahouse4", file = "savannahouse4.mts"})
-
--- Central / epic buildings
-register_savanna_central({name = "savannachurch", file = "savannachurch.mts"})
-register_savanna_central({name = "savannamarket", file = "savannamarket.mts"})
-register_savanna_central({name = "savannastable", file = "savannastable.mts"})
+lualore.village_palettes.savanna = {
+	name = "savanna",
+	biomes = {"savanna", "prarie", "naturalbiomes:outback"},
+	surface = {"default:dry_dirt_with_dry_grass", "naturalbiomes:outback_litter"},
+	offset = -6, -- schematic base is sunk 6 nodes into the ground (foundation)
+	houses = {
+		"savannahouse1.mts",
+		"savannahouse2.mts",
+		"savannahouse3.mts",
+		"savannahouse4.mts",
+	},
+	church = "savannachurch.mts",
+	market = "savannamarket.mts",
+	stable = "savannastable.mts",
+}
 
 
 

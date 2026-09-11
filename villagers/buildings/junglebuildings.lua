@@ -1,71 +1,27 @@
-local S = minetest.get_translator("lualore")
+-- junglebuildings.lua
+-- Village palette for rainforest biomes (stilt treehouses).
+-- The actual placement logic lives in systems/village_placement.lua;
+-- this file only describes WHAT can be built here.
 
--- utils.lua loaded in init.lua only → clean & safe
+lualore = lualore or {}
+lualore.village_palettes = lualore.village_palettes or {}
 
-local village_noise = lualore.global_village_noise
-local central_noise = lualore.global_central_noise
-
--- ===================================================================
--- Regular jungle treehouses (stilts already built into schematic)
--- ===================================================================
-local function register_jungle_building(params)
-    minetest.register_decoration({
-        name = "lualore:" .. params.name,
-        deco_type = "schematic",
-        place_on = {"default:dirt_with_rainforest_litter"},
-        sidelen = 58,                          -- jungle clearings are rare → give more space to find flat ones
-        noise_params = village_noise,
-        biomes = {"rainforest", "rainforest_swamp"},
-        y_min = 4,
-        y_max = 100,                           -- jungles go high!
-
-        place_offset_y = 0,
-        flags = "place_center_x, place_center_z, force_placement, all_floors",
-        height = 0,
-        height_max = 0,
-
-        schematic = minetest.get_modpath("lualore") .. "/schematics/" .. params.file,
-        rotation = "random",
-    })
-end
-
--- ===================================================================
--- Central / legendary jungle buildings (temples, big platforms, etc.)
--- ===================================================================
-local function register_jungle_central(params)
-    minetest.register_decoration({
-        name = "lualore:" .. params.name,
-        deco_type = "schematic",
-        place_on = {"default:dirt_with_rainforest_litter"},
-        sidelen = 74,                          -- ultra-rare legendary structures
-        noise_params = central_noise,
-        biomes = {"rainforest", "rainforest_swamp"},
-        y_min = 4,
-        y_max = 100,
-
-        place_offset_y = 0,
-        flags = "place_center_x, place_center_z, force_placement, all_floors",
-        height = 0,
-        height_max = 0,
-
-        schematic = minetest.get_modpath("lualore") .. "/schematics/" .. params.file,
-        rotation = "random",
-    })
-end
-
--- ===================================================================
--- REGISTER ALL JUNGLE STRUCTURES
--- ===================================================================
-
--- Regular treehouses (all have built-in stilts → no offset needed)
-register_jungle_building({name = "junglehouse1",   file = "junglehouse1.mts"})
-register_jungle_building({name = "junglehouse2",   file = "junglehouse2.mts"})
-register_jungle_building({name = "junglehouse3",   file = "junglehouse3.mts"})
-register_jungle_building({name = "junglehouse4",   file = "junglehouse4.mts"})
-
--- Legendary central structures
-register_jungle_central({name = "junglechurch",    file = "junglechurch.mts"})
-register_jungle_central({name = "junglemarket",    file = "junglemarket.mts"})
-register_jungle_central({name = "junglestable",   file = "junglestable.mts"})
+lualore.village_palettes.jungle = {
+	name = "jungle",
+	biomes = {"rainforest", "rainforest_swamp"},
+	surface = {"default:dirt_with_rainforest_litter"},
+	offset = 0, -- stilts are part of the schematics
+	y_min = 4,
+	y_max = 110,
+	houses = {
+		"junglehouse1.mts",
+		"junglehouse2.mts",
+		"junglehouse3.mts",
+		"junglehouse4.mts",
+	},
+	church = "junglechurch.mts",
+	market = "junglemarket.mts",
+	stable = "junglestable.mts",
+}
 
 

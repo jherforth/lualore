@@ -15,6 +15,8 @@ Villages generate naturally in six distinct biomes:
 - **Ice** - Hardy settlements in frozen tundra
 - **Jungle** - Tribal communities with unique customs
 
+Villages are placed deterministically: one candidate per grid cell (spacing and chance settings), with houses laid out on a ring around the centre and central buildings (church, market, stable) beside it — buildings can never overlap. Density is fully tunable in the settings; see `villagers/VILLAGE_PLACEMENT.md`.
+
 ### 👥 Villager Types
 
 Villages are populated with different NPCs, each with their own trades and behaviors:
@@ -72,7 +74,9 @@ Defeat the Valkyries to free the Sky Folk. Once liberated, they'll mark the loca
 
 ### 🏗️ Village Buildings
 
-Each biome has unique structures including houses, churches, markets, stables, shrines, and special decorative elements. Villages generate naturally and feature authentic architecture for their environment.
+Each biome has unique structures: houses, churches, markets, stables and more. A village plan is computed first (flat ground, no overlapping footprints) and only then placed, so buildings always form a clean hamlet instead of scattering or overwriting each other.
+
+Building density is controlled by settings such as `lualore_village_spacing`, `lualore_village_houses_min/max` and `lualore_village_central_chance` — see `villagers/VILLAGE_PLACEMENT.md`. In-game helpers: `/spawn_village [biome]` places one at your feet for previews, `/find_village` points you to the nearest recorded village.
 
 ### 🚪 Smart Doors
 

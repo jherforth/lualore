@@ -46,10 +46,11 @@ dofile(modpath .. "/villagers/blocks/grasslandblocks.lua")
 dofile(modpath .. "/villagers/blocks/lakeblocks.lua")
 dofile(modpath .. "/villagers/blocks/desertblocks.lua")
 
--- 2. Village system (noise parameters for building placement)
+-- 2. Legacy village noise (kept for compatibility; village placement is
+--    now deterministic - see village_placement.lua)
 dofile(modpath .. "/villagers/systems/village_noise.lua")
 
--- 3. Buildings (they use the noise tables from above)
+-- 3. Buildings (village palettes, consumed by village_placement.lua)
 dofile(modpath .. "/villagers/buildings/junglebuildings.lua")
 dofile(modpath .. "/villagers/buildings/icebuildings.lua")
 dofile(modpath .. "/villagers/buildings/grasslandbuildings.lua")
@@ -57,6 +58,9 @@ dofile(modpath .. "/villagers/buildings/lakebuildings.lua")
 dofile(modpath .. "/villagers/buildings/desertbuildings.lua")
 dofile(modpath .. "/villagers/buildings/savannabuildings.lua")
 dofile(modpath .. "/wizards/cavebuildings.lua")
+
+-- 3b. Deterministic village placement (grid + planned layouts)
+dofile(modpath .. "/villagers/systems/village_placement.lua")
 
 -- 4. Systems (villagers, mood, spawning)
 dofile(modpath .. "/villagers/systems/npcmood.lua")

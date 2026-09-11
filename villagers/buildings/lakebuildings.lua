@@ -1,78 +1,35 @@
-local S = minetest.get_translator("lualore")
+-- lakebuildings.lua
+-- Village palette for lake shores (stilt houses over the water).
+-- The actual placement logic lives in systems/village_placement.lua;
+-- this file only describes WHAT can be built here.
 
--- utils.lua loaded only in init.lua → clean
+lualore = lualore or {}
+lualore.village_palettes = lualore.village_palettes or {}
 
-local village_noise = lualore.global_village_noise
-local central_noise = lualore.global_central_noise
-
--- ===================================================================
--- Regular lake stilt houses
--- ===================================================================
-local function register_lake_building(params)
-    minetest.register_decoration({
-        name = "lualore:" .. params.name,
-        deco_type = "schematic",
-        place_on = {"default:dirt", "default:sand", "default:clay"},
-        sidelen = 58,                            -- lake shores are narrow → give more space to find flat spots
-        noise_params = village_noise,
-        biomes = {
-            "deciduous_forest_shore",
-            "coniferous_forest_ocean"
-        },
-        y_min = -2,
-        y_max = 4,                               -- must be right at water level
-
-        place_offset_y = 0,
-        flags = "place_center_x, place_center_z, force_placement, all_floors",
-        height = 0,
-        height_max = 0,
-
-        schematic = minetest.get_modpath("lualore") .. "/schematics/" .. params.file,
-        rotation = "random",
-    })
-end
-
--- ===================================================================
--- Central / rare lake buildings (church on water, big market platform, etc.)
--- ===================================================================
-local function register_lake_central(params)
-    minetest.register_decoration({
-        name = "lualore:" .. params.name,
-        deco_type = "schematic",
-        place_on = {"default:dirt", "default:sand", "default:clay"},
-        sidelen = 74,                            -- ultra-rare water temples
-        noise_params = central_noise,
-        biomes = {
-            "deciduous_forest_shore",
-            "coniferous_forest_shore"
-        },
-        y_min = -2,
-        y_max = 4,
-
-        place_offset_y = 0,
-        flags = "place_center_x, place_center_z, force_placement, all_floors",
-        height = 0,
-        height_max = 0,
-
-        schematic = minetest.get_modpath("lualore") .. "/schematics/" .. params.file,
-        rotation = "random",
-    })
-end
-
--- ===================================================================
--- REGISTER ALL LAKE STRUCTURES
--- ===================================================================
-
--- Regular stilt houses
-register_lake_building({name = "lakehouse1", file = "lakehouse1.mts"})
-register_lake_building({name = "lakehouse2", file = "lakehouse2.mts"})
-register_lake_building({name = "lakehouse3", file = "lakehouse3.mts"})
-register_lake_building({name = "lakehouse4", file = "lakehouse4.mts"})
-
--- Central / epic water buildings
-register_lake_central({name = "lakechurch", file = "lakechurch.mts"})
-register_lake_central({name = "lakemarket", file = "lakemarket.mts"})
-register_lake_central({name = "lakestable", file = "lakestable.mts"})
+lualore.village_palettes.lake = {
+	name = "lake",
+	biomes = {
+		"deciduous_forest_shore",
+		"coniferous_forest_shore",
+		"coniferous_forest_ocean",
+		"deciduous_forest_ocean",
+		"swamp_shore",
+	},
+	surface = {"default:dirt", "default:sand", "default:clay"},
+	offset = 0,      -- stilts are part of the schematics
+	water_ok = true, -- houses may stand in shallow water
+	y_min = -2,
+	y_max = 4,
+	houses = {
+		"lakehouse1.mts",
+		"lakehouse2.mts",
+		"lakehouse3.mts",
+		"lakehouse4.mts",
+	},
+	church = "lakechurch.mts",
+	market = "lakemarket.mts",
+	stable = "lakestable.mts",
+}
 
 
 
