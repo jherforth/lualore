@@ -53,6 +53,10 @@ local S = minetest.get_translator("lualore")
 lualore = lualore or {}
 lualore.village_palettes = lualore.village_palettes or {}
 
+-- Mod storage reference, fetched at load time (calling
+-- minetest.get_mod_storage() later can return nil on some engines).
+local storage = minetest.get_mod_storage()
+
 -- ------------------------------------------------------------------
 -- Configuration
 -- ------------------------------------------------------------------
@@ -504,7 +508,6 @@ end
 -- Records (for /find_village and debugging)
 -- ------------------------------------------------------------------
 local function load_records()
-	local storage = minetest.get_mod_storage()
 	local data = storage:get_string("villages")
 	if data ~= "" then
 		local records = minetest.deserialize(data)
@@ -516,7 +519,6 @@ local function load_records()
 end
 
 local function record_village(center_x, floor_y, center_z, palette, houses, centrals)
-	local storage = minetest.get_mod_storage()
 	local records = load_records()
 	records[minetest.pos_to_string({x = center_x, y = floor_y, z = center_z})] = {
 		x = center_x, y = floor_y, z = center_z,
@@ -708,7 +710,7 @@ minetest.register_chatcommand("clear_village_records", {
 		for _ in pairs(records) do
 			count = count + 1
 		end
-		minetest.get_mod_storage():set_string("villages", "")
+		storage:set_string("villages", "")
 		return true, "Cleared " .. count .. " village records."
 	end,
 })

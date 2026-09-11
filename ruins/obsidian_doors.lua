@@ -92,6 +92,11 @@ local DRY_THEMES = {desert = true, savanna = true}
 local RECORD_STORAGE = "obsidian_doors"
 local RETURN_STORAGE = "obsidian_door_returns"
 
+-- Mod storage reference. Must be fetched at load time: calling
+-- minetest.get_mod_storage() later (e.g. from a globalstep) returns
+-- nil on some engines.
+local storage = minetest.get_mod_storage()
+
 -- ------------------------------------------------------------------
 -- Node helpers
 -- ------------------------------------------------------------------
@@ -314,7 +319,7 @@ end
 local records_cache = nil
 
 local function load_records()
-	local data = minetest.get_mod_storage():get_string(RECORD_STORAGE)
+	local data = storage:get_string(RECORD_STORAGE)
 	if data ~= "" then
 		local records = minetest.deserialize(data)
 		if type(records) == "table" then
@@ -332,7 +337,7 @@ local function get_records()
 end
 
 local function save_records()
-	minetest.get_mod_storage():set_string(RECORD_STORAGE,
+	storage:set_string(RECORD_STORAGE,
 		minetest.serialize(records_cache or {}))
 end
 
@@ -347,7 +352,7 @@ local returns_cache = nil
 local function get_returns()
 	if not returns_cache then
 		returns_cache = {}
-		local data = minetest.get_mod_storage():get_string(RETURN_STORAGE)
+		local data = storage:get_string(RETURN_STORAGE)
 		if data ~= "" then
 			local parsed = minetest.deserialize(data)
 			if type(parsed) == "table" then
@@ -359,7 +364,7 @@ local function get_returns()
 end
 
 local function save_returns()
-	minetest.get_mod_storage():set_string(RETURN_STORAGE,
+	storage:set_string(RETURN_STORAGE,
 		minetest.serialize(returns_cache or {}))
 end
 
@@ -367,7 +372,7 @@ end
 -- Village distance guard (same radius as ruins.lua)
 -- ------------------------------------------------------------------
 local function too_close_to_village(x, z)
-	local data = minetest.get_mod_storage():get_string("villages")
+	local data = storage:get_string("villages")
 	if data == "" then
 		return false
 	end

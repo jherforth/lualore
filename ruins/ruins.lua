@@ -73,6 +73,11 @@ end
 
 local MODPATH = minetest.get_modpath("lualore")
 
+-- Mod storage reference, fetched at load time: calling
+-- minetest.get_mod_storage() later (on_generated, commands, ...)
+-- returns nil on some engines, so it is cached once here.
+local storage = minetest.get_mod_storage()
+
 -- ------------------------------------------------------------------
 -- Node helpers
 -- ------------------------------------------------------------------
@@ -903,7 +908,7 @@ end
 -- Village proximity guard
 -- ------------------------------------------------------------------
 local function too_close_to_village(x, z)
-	local data = minetest.get_mod_storage():get_string("villages")
+	local data = storage:get_string("villages")
 	if data == "" then
 		return false
 	end
@@ -984,7 +989,7 @@ end
 -- Records (for /find_ruin and debugging)
 -- ------------------------------------------------------------------
 local function load_records()
-	local data = minetest.get_mod_storage():get_string("ruins")
+	local data = storage:get_string("ruins")
 	if data ~= "" then
 		local records = minetest.deserialize(data)
 		if type(records) == "table" then
@@ -995,7 +1000,6 @@ local function load_records()
 end
 
 local function record_ruin(x, y, z, theme, kind)
-	local storage = minetest.get_mod_storage()
 	local records = load_records()
 	records[minetest.pos_to_string({x = x, y = y, z = z})] = {
 		x = x, y = y, z = z,
@@ -1186,7 +1190,7 @@ minetest.register_chatcommand("clear_ruin_records", {
 		for _ in pairs(records) do
 			count = count + 1
 		end
-		minetest.get_mod_storage():set_string("ruins", "")
+		storage:set_string("ruins", "")
 		return true, "Cleared " .. count .. " ruin records."
 	end,
 })
