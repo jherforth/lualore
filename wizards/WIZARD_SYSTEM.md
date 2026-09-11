@@ -88,11 +88,22 @@ The cave castle contains four powerful wizards that spawn together as a boss fig
 ## Spawn Mechanics
 
 ### Automatic Spawning
-- Wizards spawn together as a group of 4 in cave castles
-- Only spawns in generated caves (Y < 0)
-- Requires significant obsidian presence (50+ blocks) to detect castle
-- Each castle spawns wizards only once (tracked in mod storage)
-- Wizards are positioned in a circle around the castle center
+- Cave castles are placed on a deterministic grid: every
+  `lualore_cave_castle_spacing` x `lualore_cave_castle_spacing` nodes (default
+  400) has one candidate position, jittered inside the middle half of the cell,
+  so castles can never be closer than half the spacing. No more stacked or
+  missing placement from the old decoration system.
+- A candidate only spawns a castle when a suitable cave floor is found: enough
+  open space above (12+ nodes of air), no lava underneath, and between
+  `lualore_cave_castle_y_top` (default -120) and
+  `lualore_cave_castle_y_bottom` (default -1200).
+- After placement the crypt is carved open with a VoxelManip, so the statue
+  room and its stairwell from the plaza are always reachable.
+- The four wizards spawn around the statue inside the crypt. Spawning is
+  retried a few times, and each castle only spawns its group once (tracked in
+  mod storage).
+- Cave castles from worlds generated before this update are not tracked; use
+  the commands below to spawn/respawn wizards at those.
 
 ### Manual Spawning (Testing)
 Players with "give" privilege can spawn wizards using these commands:
@@ -101,7 +112,7 @@ Players with "give" privilege can spawn wizards using these commands:
 ```
 /spawn_wizards
 ```
-Spawns all 4 wizards around you in a circle (requires at least 3 to succeed)
+Spawns up to 4 wizards around you in a circle
 
 **Spawn individual wizard:**
 ```
@@ -112,6 +123,20 @@ Where `<type>` is: red, white, gold, or black
 Examples:
 - `/spawn_wizard red` - Spawns Red Wizard
 - `/spawn_wizard black` - Spawns Black Wizard
+
+**Spawn at nearest statue (works for old castles too):**
+```
+/spawn_wizards_at_statue [radius]
+```
+Finds the nearest `caverealms:dm_statue` and spawns the boss group around it
+(default radius: 100; opens a small chamber if the crypt is still buried)
+
+### Admin Commands (server privilege)
+- `/find_castle [radius]` - locate the nearest recorded cave castle (default 512)
+- `/spawn_cavecastle` - place a cave castle at your position (debug)
+- `/spawn_castle_wizards [radius]` - spawn/respawn the boss group at the nearest
+  recorded castle (default 256)
+- `/clear_castle_records` - reset wizard spawn records so groups can spawn again
 
 ## Combat Strategy
 
@@ -159,12 +184,12 @@ Examples:
 
 ### New Files
 - `wizard_magic.lua` - Spell system and effects
-- `cave_wizards.lua` - Wizard entity registration and spawning
+- `cave_wizards.lua` - Wizard entity registration
 - `WIZARD_SYSTEM.md` - This documentation file
 
 ### Modified Files
 - `init.lua` - Added wizard system loading
-- `cavebuildings.lua` - Cave castle decoration registration
+- `cavebuildings.lua` - Cave castle grid placement, crypt carving and wizard spawning
 - `villagers.lua` - Already had wizard class definitions
 
 ## Technical Details
@@ -198,7 +223,9 @@ All spells have a 2.5-second cooldown, making wizards aggressive spell casters w
 - `default` (for particle textures and item drops)
 
 ## Notes
-- Wizard spawning is saved to mod storage to prevent duplicates
-- Storage saves every 60 seconds
+- Castle records and wizard spawn flags are saved to mod storage whenever
+  they change
+- Placement is tuned through `settingtypes.txt` (spacing, chance, Y band,
+  crypt carving)
 - Each wizard has unique drops making them worth hunting
 - Wizards provide a challenging boss fight when all 4 are fought together

@@ -41,7 +41,7 @@ Hold an item a villager wants and approach them. They'll show a trade icon when 
 
 ### 🧙 Cave Wizards
 
-Deep underground in rare cave castles, you'll find powerful wizards of four colors:
+Deep underground, cave castles generate at regular intervals (roughly every 400 nodes of newly explored caves). Each one holds powerful wizards of four colors:
 
 - **Black Wizards** - Wield dark magic
 - **White Wizards** - Channel pure energy

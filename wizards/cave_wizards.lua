@@ -4,27 +4,9 @@
 
 local S = minetest.get_translator("lualore")
 
--- Track spawned wizard groups to prevent duplicates
-local spawned_wizard_groups = {}
-local storage = minetest.get_mod_storage()
-
-local function load_spawned_groups()
-	local data = storage:get_string("spawned_wizard_groups")
-	if data and data ~= "" then
-		spawned_wizard_groups = minetest.deserialize(data) or {}
-	end
-end
-
-local save_timer = 0
-minetest.register_globalstep(function(dtime)
-	save_timer = save_timer + dtime
-	if save_timer >= 60 then
-		save_timer = 0
-		storage:set_string("spawned_wizard_groups", minetest.serialize(spawned_wizard_groups))
-	end
-end)
-
-load_spawned_groups()
+-- Cave castle placement, statue detection and wizard spawn bookkeeping all
+-- live in cavebuildings.lua; this file only defines the wizard mobs and
+-- their commands.
 
 --------------------------------------------------------------------
 -- WIZARD ENTITY DEFINITIONS
@@ -310,121 +292,18 @@ for _, wizard in ipairs(wizard_types) do
 end
 
 --------------------------------------------------------------------
--- WIZARD GROUP SPAWNING IN CAVE CASTLE
+-- WIZARD GROUP SPAWNING
 --------------------------------------------------------------------
+-- Cave castle placement, statue detection and the spawn bookkeeping all
+-- live in cavebuildings.lua. These thin wrappers keep the chat commands
+-- below working.
 
-local function get_castle_key(pos)
-	return math.floor(pos.x/100) .. "," .. math.floor(pos.y/100) .. "," .. math.floor(pos.z/100)
-end
-
-local function find_cave_castle_center(minp, maxp)
-	-- Look for dm_statue nodes (the prize/spawn point in the castle)
-	local statue_positions = minetest.find_nodes_in_area(
-		minp,
-		maxp,
-		{"caverealms:dm_statue"}
-	)
-
-	-- If we found a statue, spawn wizards around it
-	if #statue_positions > 0 then
-		-- Use the first statue as the spawn center
-		local statue_pos = statue_positions[1]
-
-		-- Spawn wizards slightly above the statue position
-		local spawn_center = {
-			x = statue_pos.x,
-			y = statue_pos.y + 8,
-			z = statue_pos.z + 3
-		}
-
-		minetest.log("action", "[lualore] Found dm_statue at " .. minetest.pos_to_string(statue_pos))
-		return spawn_center
+local function spawn_wizard_boss_group(pos)
+	if not lualore.spawn_wizards_at_position then
+		return 0
 	end
-
-	return nil
+	return lualore.spawn_wizards_at_position(pos)
 end
-
-local function spawn_wizard_boss_group(center_pos)
-	-- Spawn all 4 wizards around the center in a circle
-	local wizards = {"redwizard", "whitewizard", "goldwizard", "blackwizard"}
-	local radius = 6
-	local spawned_count = 0
-
-	for i, wizard_name in ipairs(wizards) do
-		local angle = (i / #wizards) * math.pi * 2
-		local spawn_pos = {
-			x = center_pos.x + math.cos(angle) * radius,
-			y = center_pos.y,
-			z = center_pos.z + math.sin(angle) * radius
-		}
-
-		-- Try to find a valid spawn position
-		local valid_pos = nil
-
-		-- First, try the exact calculated position
-		local node = minetest.get_node(spawn_pos)
-		local node_above = minetest.get_node({x=spawn_pos.x, y=spawn_pos.y+1, z=spawn_pos.z})
-		local node_below = minetest.get_node({x=spawn_pos.x, y=spawn_pos.y-1, z=spawn_pos.z})
-
-		-- Check if we have air to spawn in and solid ground below
-		if (node.name == "air" or node.name == "ignore") and
-		   (node_above.name == "air" or node_above.name == "ignore") and
-		   (node_below.name ~= "air" and node_below.name ~= "ignore") then
-			valid_pos = spawn_pos
-		else
-			-- Try to find a better position nearby
-			for dy = -2, 5 do
-				local test_pos = {x=spawn_pos.x, y=spawn_pos.y+dy, z=spawn_pos.z}
-				local test_node = minetest.get_node(test_pos)
-				local test_above = minetest.get_node({x=test_pos.x, y=test_pos.y+1, z=test_pos.z})
-				local test_below = minetest.get_node({x=test_pos.x, y=test_pos.y-1, z=test_pos.z})
-
-				if (test_node.name == "air" or test_node.name == "ignore") and
-				   (test_above.name == "air" or test_above.name == "ignore") and
-				   (test_below.name ~= "air" and test_below.name ~= "ignore") then
-					valid_pos = test_pos
-					break
-				end
-			end
-		end
-
-		-- Spawn the wizard
-		if valid_pos then
-			local obj = minetest.add_entity(valid_pos, "lualore:" .. wizard_name)
-			if obj then
-				spawned_count = spawned_count + 1
-				minetest.log("action", "[lualore] Spawned " .. wizard_name .. " at " .. minetest.pos_to_string(valid_pos))
-			else
-				minetest.log("warning", "[lualore] Failed to spawn " .. wizard_name .. " - entity creation failed")
-			end
-		else
-			minetest.log("warning", "[lualore] Failed to spawn " .. wizard_name .. " - no valid position found")
-		end
-	end
-
-	return spawned_count >= 3
-end
-
--- Spawn wizards when cave castle is generated
-minetest.register_on_generated(function(minp, maxp, blockseed)
-	-- Only check caves
-	if minp.y > 0 then return end
-
-	minetest.after(10, function()
-		local center = find_cave_castle_center(minp, maxp)
-		if center then
-			local castle_key = get_castle_key(center)
-
-			if not spawned_wizard_groups[castle_key] then
-				local success = spawn_wizard_boss_group(center)
-				if success then
-					spawned_wizard_groups[castle_key] = true
-					minetest.log("action", "[lualore] Wizard boss group spawned in cave castle at " .. minetest.pos_to_string(center))
-				end
-			end
-		end
-	end)
-end)
 
 -- Chat command to manually spawn wizard boss group (for testing)
 minetest.register_chatcommand("spawn_wizards", {
@@ -440,13 +319,12 @@ minetest.register_chatcommand("spawn_wizards", {
 		-- Log attempt
 		minetest.log("action", "[lualore] " .. name .. " attempting to spawn wizard boss group at " .. minetest.pos_to_string(pos))
 
-		local success = spawn_wizard_boss_group(pos)
+		local spawned = spawn_wizard_boss_group(pos)
 
-		if success then
-			return true, "Wizard boss group spawned! (At least 3 wizards)"
-		else
-			return false, "Failed to spawn wizard boss group - check debug.txt for details"
+		if spawned > 0 then
+			return true, string.format("Spawned %d/4 wizards!", spawned)
 		end
+		return false, "Failed to spawn wizard boss group - check debug.txt for details"
 	end,
 })
 
@@ -501,20 +379,26 @@ minetest.register_chatcommand("spawn_wizards_at_statue", {
 			{"caverealms:dm_statue"}
 		)
 
-		if #statues > 0 then
-			local statue_pos = statues[1]
-			local spawn_pos = {x = statue_pos.x, y = statue_pos.y + 1, z = statue_pos.z}
-
-			local success = spawn_wizard_boss_group(spawn_pos)
-			if success then
-				return true, "Wizard boss group spawned at statue! Location: " ..
-				            minetest.pos_to_string(statue_pos)
-			else
-				return false, "Failed to spawn wizard boss group at statue"
-			end
-		else
+		if #statues == 0 then
 			return false, "No statues found within " .. radius .. " nodes"
 		end
+
+		local statue_pos = statues[1]
+		local min_dist = vector.distance(pos, statue_pos)
+		for _, candidate in ipairs(statues) do
+			local dist = vector.distance(pos, candidate)
+			if dist < min_dist then
+				min_dist = dist
+				statue_pos = candidate
+			end
+		end
+
+		local spawned = lualore.spawn_wizards_around_statue(statue_pos, {unseal = true})
+		if spawned > 0 then
+			return true, string.format("Spawned %d/4 wizards at statue %s", spawned,
+				minetest.pos_to_string(statue_pos))
+		end
+		return false, "Failed to spawn wizard boss group at statue"
 	end,
 })
 

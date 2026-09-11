@@ -1,0 +1,23 @@
+[lualore]
+
+# Enable automatic cave castle placement in newly generated underground areas.
+lualore_cave_castles (Cave castles) bool true
+
+# Grid spacing (in nodes) between cave castle candidates. One candidate exists
+# per spacing x spacing area, jittered in the middle half of the cell, so two
+# castles can never be closer together than half this value.
+lualore_cave_castle_spacing (Cave castle spacing) int 400 200 5000
+
+# Fraction of grid cells that actually attempt to spawn a castle (0.0 - 1.0).
+lualore_cave_castle_chance (Cave castle spawn chance) float 1.0 0.0 1.0
+
+# Cave castles are only placed on cave floors at or below this Y level.
+lualore_cave_castle_y_top (Cave castle spawn band top) int -120 -31000 0
+
+# Cave castles are only placed on cave floors at or above this Y level
+# (lower number = deeper).
+lualore_cave_castle_y_bottom (Cave castle spawn band bottom) int -1200 -31000 0
+
+# Carve the castle crypt (statue room + stairwell) open after placement so the
+# wizard boss group can always spawn. Turn off only for debugging.
+lualore_cave_castle_carve (Cave castle carve crypt) bool true
