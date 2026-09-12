@@ -40,6 +40,8 @@
 --   lualore_villages                (bool,  default true)
 --   lualore_village_spacing         (int,   default 320)
 --   lualore_village_chance          (float, default 0.9)
+--   lualore_village_terraform       (bool,  default true)
+--   lualore_village_terraform_max   (int,   default 8)
 --   lualore_village_houses_min      (int,   default 4)
 --   lualore_village_houses_max      (int,   default 8)
 --   lualore_village_radius          (int,   default 22)
@@ -75,6 +77,9 @@ end
 local ENABLED    = minetest.settings:get_bool("lualore_villages", true)
 local SPACING    = clamp(math.floor(setting_number("lualore_village_spacing", 320)), 200, 5000)
 local CHANCE     = clamp(setting_number("lualore_village_chance", 0.9), 0.0, 1.0)
+local TERRAFORM  = minetest.settings:get_bool("lualore_village_terraform", true)
+local TERRAFORM_MAX = clamp(math.floor(
+	setting_number("lualore_village_terraform_max", 8)), 2, 16)
 local HOUSES_MIN = clamp(math.floor(setting_number("lualore_village_houses_min", 4)), 1, 20)
 local HOUSES_MAX = clamp(math.floor(setting_number("lualore_village_houses_max", 8)), 1, 20)
 if HOUSES_MAX < HOUSES_MIN then
@@ -327,26 +332,155 @@ local function center_ok(x, z, y, palette)
 	return true
 end
 
--- ...and the area around it flat enough for a village.
+-- The placer terraforms the site (see terraform_area), so the area only
+-- needs to be tameable: readable, and not a cliff or a mountainside.
+-- A handful of extreme samples is fine (pools, the odd ravine); too many
+-- and the cell is dismissed.
 local function area_ok(x, z, floor_y, palette, top, bottom)
-	local r1 = 10
-	local r2 = math.max(14, math.floor(RADIUS * 0.7))
-	local samples = {
-		{0, 0},
-		{r1, 0}, {-r1, 0}, {0, r1}, {0, -r1},
-		{r2, r2}, {-r2, r2}, {r2, -r2}, {-r2, -r2},
-	}
-	local good = 0
-	for _, off in ipairs(samples) do
-		local y, err = find_floor_near(x + off[1], z + off[2], floor_y, 3, top, bottom)
-		if err == "retry" then
-			return "retry"
-		end
-		if y and math.abs(y - floor_y) <= 2 then
-			good = good + 1
+	local r_zone = RADIUS + 12
+	local step = math.max(5, math.floor(r_zone / 5))
+	local total, unknown, extreme = 0, 0, 0
+	local min_dev, max_dev = 0, 0
+	for dx = -r_zone, r_zone, step do
+		for dz = -r_zone, r_zone, step do
+			if dx * dx + dz * dz <= r_zone * r_zone then
+				total = total + 1
+				local y, err = find_floor_near(x + dx, z + dz, floor_y, TERRAFORM_MAX, top, bottom)
+				if err == "retry" then
+					unknown = unknown + 1
+				elseif y then
+					local dev = y - floor_y
+					if dev > max_dev then max_dev = dev end
+					if dev < min_dev then min_dev = dev end
+				else
+					extreme = extreme + 1
+				end
+			end
 		end
 	end
-	return good >= 7
+	if unknown > total * 0.25 then
+		return "retry" -- surroundings not generated yet
+	end
+	if (max_dev > TERRAFORM_MAX or min_dev < -TERRAFORM_MAX
+			or extreme > total * 0.25) and not palette.water_ok then
+		return false -- cliff / mountainside / chasm: nothing to build here
+	end
+	return true
+end
+
+-- ------------------------------------------------------------------
+-- Terraforming: level the ground around the village site so houses can
+-- stand on hilly maps. It fills dips up to `TERRAFORM_MAX` nodes deep
+-- and cuts hills up to the same height, keeps natural water columns
+-- untouched, blends the rim, and re-lays the original surface node on
+-- top so the biome look survives.
+-- Returns "ok" or "retry" (surroundings not generated yet - nothing is
+-- written in that case).
+-- ------------------------------------------------------------------
+local function terraform_area(cx, cz, floor_y)
+	local zone_r = RADIUS + 12
+	local y_lo = floor_y - TERRAFORM_MAX - 2
+	local y_hi = floor_y + 24
+	local minp = {x = cx - zone_r, y = y_lo, z = cz - zone_r}
+	local maxp = {x = cx + zone_r, y = y_hi, z = cz + zone_r}
+
+	local vm = minetest.get_voxel_manip()
+	local emin, emax = vm:read_from_map(minp, maxp)
+	local data = vm:get_data()
+	local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
+	local c_air = minetest.get_content_id("air")
+	local c_ignore = minetest.get_content_id("ignore")
+	local c_dirt = minetest.get_content_id("default:dirt")
+
+	local processed, dropped = 0, 0
+	local changed = false
+	local rim_sq = (zone_r - 5) * (zone_r - 5)
+
+	for x = cx - zone_r, cx + zone_r do
+		for z = cz - zone_r, cz + zone_r do
+			local dx, dz = x - cx, z - cz
+			local rr2 = dx * dx + dz * dz
+			if rr2 <= zone_r * zone_r
+					and area:containsp({x = x, y = floor_y, z = z}) then
+				processed = processed + 1
+				local t, t_name, unreadable
+				for y = y_hi, y_lo, -1 do
+					local id = data[area:index(x, y, z)]
+					if id == c_ignore then
+						unreadable = true
+						break
+					end
+					if id ~= c_air then
+						local nm = minetest.get_name_from_content_id(id)
+						if nm:find("water") or nm:find("lava") then
+							break -- natural water/lava: leave this column alone
+						end
+						if not is_treeish(nm) then
+							t, t_name = y, nm
+							break
+						end
+					end
+				end
+
+				if unreadable then
+					dropped = dropped + 1
+				elseif t then
+					local rim = rr2 > rim_sq
+					local dev = t - floor_y
+					local okay = true
+					if rim and math.abs(dev) > 3 then
+						okay = false -- soft edge: leave the rim mostly natural
+					elseif math.abs(dev) > TERRAFORM_MAX then
+						okay = false -- cliff or mountainside: leave it
+					end
+					if okay then
+						-- body material from the layer under the old surface
+						local body = c_dirt
+						if t - 1 >= y_lo then
+							local bid = data[area:index(x, t - 1, z)]
+							if bid ~= c_air and bid ~= c_ignore then
+								local bnm = minetest.get_name_from_content_id(bid)
+								if not (bnm:find("water") or bnm:find("lava")
+										or is_treeish(bnm)) then
+									body = bid
+								end
+							end
+						end
+						-- cut the hill down to floor level
+						if t > floor_y then
+							for y = floor_y + 1, t do
+								data[area:index(x, y, z)] = c_air
+							end
+						-- or fill the dip up to it
+						elseif t < floor_y then
+							for y = t + 1, floor_y - 1 do
+								data[area:index(x, y, z)] = body
+							end
+						end
+						-- clear anything above the new surface (trees etc.)
+						for y = math.max(t, floor_y) + 1, y_hi do
+							if data[area:index(x, y, z)] ~= c_air then
+								data[area:index(x, y, z)] = c_air
+							end
+						end
+						-- keep the original surface node on top
+						data[area:index(x, floor_y, z)] = minetest.get_content_id(t_name)
+						changed = true
+					end
+				end
+			end
+		end
+	end
+
+	if processed > 0 and dropped > processed * 0.25 then
+		return "retry" -- surroundings not generated yet; nothing written
+	end
+	if changed then
+		vm:set_data(data)
+		vm:write_to_map(true)
+		vm:update_liquids()
+	end
+	return "ok"
 end
 
 -- A building footprint must sit on (near-)level ground.
@@ -495,6 +629,14 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 	end
 	if not aok then
 		return false
+	end
+
+	-- Level the ground around the site before planning the buildings
+	if TERRAFORM then
+		local tok = terraform_area(center_x, center_z, floor_y)
+		if tok == "retry" then
+			return "retry"
+		end
 	end
 
 	local pr = PcgRandom(seed)
@@ -956,8 +1098,9 @@ do
 	end
 	table.sort(palette_names)
 	minetest.log("action", string.format(
-		"[lualore] Villages %s: spacing=%d chance=%.2f band=%d..%d, palettes: %s",
+		"[lualore] Villages %s: spacing=%d chance=%.2f band=%d..%d, terraform=%s, palettes: %s",
 		ENABLED and "enabled" or "DISABLED", SPACING, CHANCE, Y_MIN, Y_MAX,
+		TERRAFORM and "on" or "off",
 		#palette_names > 0 and table.concat(palette_names, ", ")
 			or "NONE - village building files did not load!"))
 end

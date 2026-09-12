@@ -41,6 +41,8 @@ lualore_village_spacing (Village spacing) int 320 200 5000
 
 # Fraction of grid cells that actually attempt to spawn a village (0.0 - 1.0).
 lualore_village_chance (Village spawn chance) float 0.9 0.0 1.0
+lualore_village_terraform (Village terraforming) bool true
+lualore_village_terraform_max (Village terraform band) int 8 2 16
 
 # Minimum number of houses per village (placed on a ring around the centre).
 lualore_village_houses_min (Village houses minimum) int 4 1 20
