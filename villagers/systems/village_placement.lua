@@ -38,8 +38,8 @@
 --
 -- All tuning lives in minetest.conf / settingtypes.txt:
 --   lualore_villages                (bool,  default true)
---   lualore_village_spacing         (int,   default 400)
---   lualore_village_chance          (float, default 0.8)
+--   lualore_village_spacing         (int,   default 320)
+--   lualore_village_chance          (float, default 0.9)
 --   lualore_village_houses_min      (int,   default 4)
 --   lualore_village_houses_max      (int,   default 8)
 --   lualore_village_radius          (int,   default 22)
@@ -73,8 +73,8 @@ local function clamp(value, low, high)
 end
 
 local ENABLED    = minetest.settings:get_bool("lualore_villages", true)
-local SPACING    = clamp(math.floor(setting_number("lualore_village_spacing", 400)), 200, 5000)
-local CHANCE     = clamp(setting_number("lualore_village_chance", 0.8), 0.0, 1.0)
+local SPACING    = clamp(math.floor(setting_number("lualore_village_spacing", 320)), 200, 5000)
+local CHANCE     = clamp(setting_number("lualore_village_chance", 0.9), 0.0, 1.0)
 local HOUSES_MIN = clamp(math.floor(setting_number("lualore_village_houses_min", 4)), 1, 20)
 local HOUSES_MAX = clamp(math.floor(setting_number("lualore_village_houses_max", 8)), 1, 20)
 if HOUSES_MAX < HOUSES_MIN then
@@ -105,6 +105,19 @@ end
 local function is_walkable(name)
 	local def = minetest.registered_nodes[name]
 	return def ~= nil and def.walkable == true
+end
+
+-- Tree parts are never treated as ground: villages should base on the soil
+-- beneath trees, not on trunks or canopies.
+local TREEISH_PARTS = { "tree", "wood", "trunk", "stem", "log", "leaves" }
+
+local function is_treeish(name)
+	for _, part in ipairs(TREEISH_PARTS) do
+		if name:find(part, 1, true) then
+			return true
+		end
+	end
+	return false
 end
 
 local function is_liquid(name)
@@ -205,6 +218,53 @@ local function palette_for_pos(x, z)
 	return nil
 end
 
+-- Fallback selection for worlds whose biome names are missing or renamed:
+-- choose the palette by the actual ground block under the candidate - the
+-- same "spawn on these blocks" idea the old decoration system used.
+local function palette_for_node(node_name)
+	for _, palette in ipairs(get_palettes()) do
+		for _, surface in ipairs(palette.surface) do
+			if surface == node_name then
+				return palette
+			end
+		end
+	end
+	return nil
+end
+
+local function find_surface_node(x, z)
+	for y = Y_MAX, Y_MIN, -1 do
+		local name = get_name({x = x, y = y, z = z})
+		if is_unknown(name) then
+			return nil
+		end
+		if is_walkable(name) and not is_treeish(name) then
+			return name
+		end
+	end
+	return nil
+end
+
+-- Palette decision used by the placement driver: biome name first, ground
+-- block as fallback. Returns palette (or nil), biome name, whether the
+-- fallback was used, and the ground block that decided it.
+local function select_palette(x, z)
+	local data = minetest.get_biome_data({x = x, y = 64, z = z})
+	local biome = data and minetest.get_biome_name(data.biome) or "?"
+	local palette = palette_for_pos(x, z)
+	if palette then
+		return palette, biome, false, nil
+	end
+	local node = find_surface_node(x, z)
+	if node then
+		palette = palette_for_node(node)
+		if palette then
+			return palette, biome, true, node
+		end
+	end
+	return nil, biome, false, nil
+end
+
 -- Scanning window of a palette, intersected with the global band.
 local function palette_window(palette)
 	local top = math.min(Y_MAX, palette.y_max or Y_MAX)
@@ -226,7 +286,7 @@ local function find_floor(x, z, top, bottom)
 		if is_unknown(name) then
 			return nil, "retry"
 		end
-		if is_walkable(name) then
+		if is_walkable(name) and not is_treeish(name) then
 			return y
 		end
 	end
@@ -258,7 +318,9 @@ local function center_ok(x, z, y, palette)
 		if is_unknown(above) then
 			return "retry"
 		end
-		if not passable(above, palette.water_ok) then
+		-- Trees over the plot are fine: houses are placed with force and
+		-- replace whatever stands inside their footprint.
+		if not passable(above, palette.water_ok) and not is_treeish(above) then
 			return false
 		end
 	end
@@ -569,17 +631,21 @@ local function attempt_cell(cell_x, cell_z, minp, maxp)
 		return
 	end
 
-	local palette = palette_for_pos(cx, cz)
+	local palette, biome, via_node, node_name = select_palette(cx, cz)
 	if not palette then
 		tried[key] = true
-		local data = minetest.get_biome_data({x = cx, y = 64, z = cz})
-		local biome = data and minetest.get_biome_name(data.biome) or "?"
 		if not warned_biomes[biome] then
 			warned_biomes[biome] = true
 			minetest.log("action", "[lualore] Villages: no palette for biome '" ..
 				biome .. "' (first seen at " .. cx .. "," .. cz .. ")")
 		end
 		return
+	end
+	if via_node and not warned_biomes[biome] then
+		warned_biomes[biome] = true
+		minetest.log("action", string.format(
+			"[lualore] Villages: biome '%s' has no palette - using '%s' via ground block '%s'",
+			biome, palette.name or "?", tostring(node_name)))
 	end
 
 	local result, houses, centrals, floor_y =
@@ -649,7 +715,7 @@ lualore.villages = {
 	-- internal builder: true/false/"retry"[, houses, centrals, floor_y].
 	build_at = function(x, z, palette_name, seed)
 		local palette = palette_name and lualore.village_palettes[palette_name]
-			or palette_for_pos(x, z)
+			or select_palette(x, z)
 		if not palette then
 			return false
 		end
@@ -679,7 +745,7 @@ minetest.register_chatcommand("spawn_village", {
 					"' (use: grassland, desert, ice, jungle, lake, savanna)"
 			end
 		else
-			palette = palette_for_pos(pos.x, pos.z)
+			palette = select_palette(pos.x, pos.z)
 			if not palette then
 				return false, "No village palette for this biome - pass one explicitly, e.g. /spawn_village grassland"
 			end
@@ -778,7 +844,7 @@ minetest.register_chatcommand("village_probe", {
 						local data = minetest.get_biome_data({x = cx, y = 64, z = cz})
 						local biome = data and minetest.get_biome_name(data.biome) or "<nil>"
 						biomes[biome] = true
-						local palette = palette_for_pos(cx, cz)
+						local palette = select_palette(cx, cz)
 						if not palette then
 							stats.no_palette = stats.no_palette + 1
 							unmatched[biome] = true
@@ -837,7 +903,7 @@ minetest.register_chatcommand("village_probe", {
 
 		local my_data = minetest.get_biome_data({x = px, y = 64, z = pz})
 		local my_biome = my_data and minetest.get_biome_name(my_data.biome) or "<nil>"
-		local my_palette = palette_for_pos(px, pz)
+		local my_palette = select_palette(px, pz)
 		local my_line
 		if my_palette then
 			local top, bottom = palette_window(my_palette)

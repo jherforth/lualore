@@ -43,8 +43,8 @@ made building density nearly impossible to tune:
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `lualore_villages` | `true` | Enable automatic placement. |
-| `lualore_village_spacing` | `400` | Nodes between grid cells. Lower = more villages. |
-| `lualore_village_chance` | `0.8` | Fraction of cells that attempt a village. |
+| `lualore_village_spacing` | `320` | Nodes between grid cells. Lower = more villages. |
+| `lualore_village_chance` | `0.9` | Fraction of cells that attempt a village. |
 | `lualore_village_houses_min` | `4` | Minimum houses per village. |
 | `lualore_village_houses_max` | `8` | Maximum houses per village. |
 | `lualore_village_radius` | `22` | How far houses scatter from the centre. |
@@ -54,8 +54,9 @@ made building density nearly impossible to tune:
 
 Tuning recipes:
 
-- **More villages:** lower `lualore_village_spacing` (350, 250) and/or raise
-  `lualore_village_chance` to `1.0`.
+- **More villages:** lower `lualore_village_spacing` (280, 220) and/or raise
+  `lualore_village_chance` to `1.0`. The defaults (320 / 0.9) already favour
+  density over sparseness.
 - **Bigger villages:** raise `lualore_village_houses_max` (10–12) and
   `lualore_village_radius` (28–32).
 - **Fewer fancy buildings:** lower `lualore_village_central_chance`.
@@ -106,6 +107,12 @@ existing `houses` list).
   name to the relevant `biomes` list. The server log prints
   `[lualore] Villages: no palette for biome 'X'` the first time an
   unrecognized biome gets a candidate, so renames never fail silently.
+- When a biome has no palette at all, the placer falls back to the ground
+  block under the candidate (the same "spawn on these nodes" idea the old
+  decoration system used): the first palette whose `surface` list contains
+  that block is chosen, logged once per biome. Tree parts (trunks, leaves,
+  wood) are never treated as ground - villages base on the soil beneath
+  trees, and houses replace whatever stands inside their footprint.
 - Already-generated terrain keeps whatever it had before this system (old
   decoration buildings stay where they are); the new placer only affects
   newly generated chunks.

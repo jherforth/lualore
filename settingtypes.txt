@@ -37,10 +37,10 @@ lualore_villages (Villages) bool true
 # per spacing x spacing area, jittered in the middle half of the cell, so two
 # villages can never be closer together than half this value.
 # Lower = more villages (400 = roughly one village per 400x400 area on average).
-lualore_village_spacing (Village spacing) int 400 200 5000
+lualore_village_spacing (Village spacing) int 320 200 5000
 
 # Fraction of grid cells that actually attempt to spawn a village (0.0 - 1.0).
-lualore_village_chance (Village spawn chance) float 0.8 0.0 1.0
+lualore_village_chance (Village spawn chance) float 0.9 0.0 1.0
 
 # Minimum number of houses per village (placed on a ring around the centre).
 lualore_village_houses_min (Village houses minimum) int 4 1 20
