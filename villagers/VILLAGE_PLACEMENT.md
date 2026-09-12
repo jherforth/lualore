@@ -30,12 +30,15 @@ made building density nearly impossible to tune:
   the candidate maps to a palette (if the biome is unknown, the ground block
   under the candidate picks the palette instead).
 - The site is **terraformed** before anything is built
-  (`lualore_village_terraform`): dips up to `lualore_village_terraform_max`
-  nodes deep are filled and hills of that height are cut down level with
-  the centre. The original top block is re-laid so the biome look survives,
-  water is left alone, and the rim blends into the untouched landscape.
-  Sites that are mostly cliff or mountainside are dismissed outright -
-  nothing is ever half-terraformed.
+  (`lualore_village_terraform`): the village floor becomes a clean, uniform
+  plain of the palette's ground block (dips filled, hills cut, up to
+  `lualore_village_terraform_max` nodes of relief; plants and trees are
+  cleared and lighting is refreshed). Around the flat core a ramp band lets
+  the terrain step one node per block back up or down - a bowl rising into
+  a hillside, or a lens falling away over a dip - so the village blends
+  into the landscape. Water is left alone, cliffs beyond the band stay
+  cliffs, and nothing is ever half-terraformed (unreadable surroundings
+  retry without writing).
 - The layout is **planned completely before anything is placed**: church,
   market and stable first (rolled separately), then houses evenly spread on a
   ring around the centre, each nudged until it fits without overlapping any
@@ -54,9 +57,9 @@ made building density nearly impossible to tune:
 | `lualore_village_chance` | `0.9` | Fraction of cells that attempt a village. |
 | `lualore_village_terraform` | `true` | Level the ground around each village site. |
 | `lualore_village_terraform_max` | `8` | Nodes of slope that may be cut/filled. |
-| `lualore_village_houses_min` | `4` | Minimum houses per village. |
-| `lualore_village_houses_max` | `8` | Maximum houses per village. |
-| `lualore_village_radius` | `22` | How far houses scatter from the centre. |
+| `lualore_village_houses_min` | `5` | Minimum houses per village. |
+| `lualore_village_houses_max` | `20` | Maximum houses per village (bigger targets widen the layout and terraced area automatically). |
+| `lualore_village_radius` | `22` | Base scattering radius; grows with the rolled village size. |
 | `lualore_village_central_chance` | `0.45` | Chance per central building (church/market/stable). |
 | `lualore_village_y_max` | `200` | Top of the surface search band. |
 | `lualore_village_y_min` | `-2` | Bottom of the surface search band. |
@@ -66,8 +69,10 @@ Tuning recipes:
 - **More villages:** lower `lualore_village_spacing` (280, 220) and/or raise
   `lualore_village_chance` to `1.0`. The defaults (320 / 0.9) already favour
   density over sparseness.
-- **Bigger villages:** raise `lualore_village_houses_max` (10–12) and
-  `lualore_village_radius` (28–32).
+- **Smaller compact villages:** lower `lualore_village_houses_max` (6-8).
+- **Bigger villages:** the default range is 5-20 houses and the layout
+  widens automatically with the target; raise `lualore_village_radius`
+  for even more spread at the top end.
 - **Fewer fancy buildings:** lower `lualore_village_central_chance`.
 - **Bigger terraces / more hilly sites:** raise
   `lualore_village_terraform_max` (10–12) - more hills become village sites

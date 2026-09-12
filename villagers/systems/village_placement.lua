@@ -28,7 +28,9 @@
 --     spacing.
 --   * A cell spawns a village if it passes the `chance` roll, the biome
 --     at the candidate maps to a village palette (see
---     villagers/buildings/*.lua), and the terrain is flat enough.
+--     villagers/buildings/*.lua), and the site is tameable: the ground
+--     is levelled into a clean plain and blended into the landscape
+--     (bowl/lens ramps) before anything is built.
 --   * The layout is PLANNED COMPLETELY before anything is placed:
 --     optional central buildings (church first, then market/stable)
 --     around the centre, then houses on a ring with spacing checks, so
@@ -42,8 +44,8 @@
 --   lualore_village_chance          (float, default 0.9)
 --   lualore_village_terraform       (bool,  default true)
 --   lualore_village_terraform_max   (int,   default 8)
---   lualore_village_houses_min      (int,   default 4)
---   lualore_village_houses_max      (int,   default 8)
+--   lualore_village_houses_min      (int,   default 5)
+--   lualore_village_houses_max      (int,   default 20)
 --   lualore_village_radius          (int,   default 22)
 --   lualore_village_central_chance  (float, default 0.45)
 --   lualore_village_y_max           (int,   default 200)
@@ -80,8 +82,8 @@ local CHANCE     = clamp(setting_number("lualore_village_chance", 0.9), 0.0, 1.0
 local TERRAFORM  = minetest.settings:get_bool("lualore_village_terraform", true)
 local TERRAFORM_MAX = clamp(math.floor(
 	setting_number("lualore_village_terraform_max", 8)), 2, 16)
-local HOUSES_MIN = clamp(math.floor(setting_number("lualore_village_houses_min", 4)), 1, 20)
-local HOUSES_MAX = clamp(math.floor(setting_number("lualore_village_houses_max", 8)), 1, 20)
+local HOUSES_MIN = clamp(math.floor(setting_number("lualore_village_houses_min", 5)), 1, 20)
+local HOUSES_MAX = clamp(math.floor(setting_number("lualore_village_houses_max", 20)), 1, 20)
 if HOUSES_MAX < HOUSES_MIN then
 	HOUSES_MAX = HOUSES_MIN
 end
@@ -336,8 +338,8 @@ end
 -- needs to be tameable: readable, and not a cliff or a mountainside.
 -- A handful of extreme samples is fine (pools, the odd ravine); too many
 -- and the cell is dismissed.
-local function area_ok(x, z, floor_y, palette, top, bottom)
-	local r_zone = RADIUS + 12
+local function area_ok(x, z, floor_y, palette, top, bottom, eff_radius)
+	local r_zone = (eff_radius or RADIUS) + 14
 	local step = math.max(5, math.floor(r_zone / 5))
 	local total, unknown, extreme = 0, 0, 0
 	local min_dev, max_dev = 0, 0
@@ -377,8 +379,8 @@ end
 -- Returns "ok" or "retry" (surroundings not generated yet - nothing is
 -- written in that case).
 -- ------------------------------------------------------------------
-local function terraform_area(cx, cz, floor_y)
-	local zone_r = RADIUS + 12
+local function terraform_area(cx, cz, floor_y, palette, eff_radius)
+	local zone_r = (eff_radius or RADIUS) + 14
 	local y_lo = floor_y - TERRAFORM_MAX - 2
 	local y_hi = floor_y + 24
 	local minp = {x = cx - zone_r, y = y_lo, z = cz - zone_r}
@@ -392,9 +394,18 @@ local function terraform_area(cx, cz, floor_y)
 	local c_ignore = minetest.get_content_id("ignore")
 	local c_dirt = minetest.get_content_id("default:dirt")
 
+	-- one clean surface for the whole village floor: no material noise
+	local c_top = c_dirt
+	if palette and palette.surface and palette.surface[1] then
+		c_top = minetest.get_content_id(palette.surface[1])
+	end
+
 	local processed, dropped = 0, 0
 	local changed = false
-	local rim_sq = (zone_r - 5) * (zone_r - 5)
+	-- bowl/lens blending: the core is perfectly flat, then a ramp band lets
+	-- the ground step one node per block back up (hill side) or down (dip)
+	local r_flat = (eff_radius or RADIUS) + 6
+	local band_w = 8
 
 	for x = cx - zone_r, cx + zone_r do
 		for z = cz - zone_r, cz + zone_r do
@@ -403,7 +414,7 @@ local function terraform_area(cx, cz, floor_y)
 			if rr2 <= zone_r * zone_r
 					and area:containsp({x = x, y = floor_y, z = z}) then
 				processed = processed + 1
-				local t, t_name, unreadable
+				local t, unreadable
 				for y = y_hi, y_lo, -1 do
 					local id = data[area:index(x, y, z)]
 					if id == c_ignore then
@@ -416,7 +427,7 @@ local function terraform_area(cx, cz, floor_y)
 							break -- natural water/lava: leave this column alone
 						end
 						if not is_treeish(nm) then
-							t, t_name = y, nm
+							t = y
 							break
 						end
 					end
@@ -425,15 +436,31 @@ local function terraform_area(cx, cz, floor_y)
 				if unreadable then
 					dropped = dropped + 1
 				elseif t then
-					local rim = rr2 > rim_sq
 					local dev = t - floor_y
-					local okay = true
-					if rim and math.abs(dev) > 3 then
-						okay = false -- soft edge: leave the rim mostly natural
-					elseif math.abs(dev) > TERRAFORM_MAX then
-						okay = false -- cliff or mountainside: leave it
+					local envelope
+					if rr2 <= r_flat * r_flat then
+						envelope = 0 -- the village core is perfectly flat
+					else
+						envelope = math.min(TERRAFORM_MAX,
+							math.floor((math.sqrt(rr2) - r_flat) * TERRAFORM_MAX / band_w))
 					end
-					if okay then
+					if math.abs(dev) > TERRAFORM_MAX then
+						-- beyond the taming band (cliff side / deep chasm): leave it
+					elseif math.abs(dev) <= envelope then
+						if envelope == 0 then
+							-- already level: just clean the surface (plants, trees)
+							for y = floor_y + 1, y_hi do
+								if data[area:index(x, y, z)] ~= c_air then
+									data[area:index(x, y, z)] = c_air
+								end
+							end
+							data[area:index(x, floor_y, z)] = c_top
+							changed = true
+						end
+						-- inside the ramp band: keep the natural slope
+					else
+						local target_y = (dev > 0)
+							and (floor_y + envelope) or (floor_y - envelope)
 						-- body material from the layer under the old surface
 						local body = c_dirt
 						if t - 1 >= y_lo then
@@ -446,25 +473,24 @@ local function terraform_area(cx, cz, floor_y)
 								end
 							end
 						end
-						-- cut the hill down to floor level
-						if t > floor_y then
-							for y = floor_y + 1, t do
+						if target_y < t then
+							-- cut the hill down toward the ramp
+							for y = target_y + 1, t do
 								data[area:index(x, y, z)] = c_air
 							end
-						-- or fill the dip up to it
-						elseif t < floor_y then
-							for y = t + 1, floor_y - 1 do
+						elseif target_y > t then
+							-- fill the dip up toward the ramp
+							for y = t + 1, target_y - 1 do
 								data[area:index(x, y, z)] = body
 							end
 						end
 						-- clear anything above the new surface (trees etc.)
-						for y = math.max(t, floor_y) + 1, y_hi do
+						for y = math.max(t, target_y) + 1, y_hi do
 							if data[area:index(x, y, z)] ~= c_air then
 								data[area:index(x, y, z)] = c_air
 							end
 						end
-						-- keep the original surface node on top
-						data[area:index(x, floor_y, z)] = minetest.get_content_id(t_name)
+						data[area:index(x, target_y, z)] = c_top
 						changed = true
 					end
 				end
@@ -479,6 +505,9 @@ local function terraform_area(cx, cz, floor_y)
 		vm:set_data(data)
 		vm:write_to_map(true)
 		vm:update_liquids()
+		-- refresh lighting over the whole site so the levelled ground does
+		-- not keep stale light patches from the removed hills
+		minetest.fix_light(minp, maxp)
 	end
 	return "ok"
 end
@@ -623,7 +652,13 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 		return false
 	end
 
-	local aok = area_ok(center_x, center_z, floor_y, palette, top, bottom)
+	-- Village size drives the footprint: bigger targets need more room for
+	-- the house ring and a wider terraformed plain.
+	local pr = PcgRandom(seed)
+	local target = pr:next(HOUSES_MIN, HOUSES_MAX)
+	local eff_radius = math.min(RADIUS + math.floor(math.max(0, target - 8) * 1.2), 36)
+
+	local aok = area_ok(center_x, center_z, floor_y, palette, top, bottom, eff_radius)
 	if aok == "retry" then
 		return "retry"
 	end
@@ -633,13 +668,12 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 
 	-- Level the ground around the site before planning the buildings
 	if TERRAFORM then
-		local tok = terraform_area(center_x, center_z, floor_y)
+		local tok = terraform_area(center_x, center_z, floor_y, palette, eff_radius)
 		if tok == "retry" then
 			return "retry"
 		end
 	end
 
-	local pr = PcgRandom(seed)
 	local plans = {}
 
 	-- 1. Central buildings: church first, then market and stable.
@@ -674,10 +708,9 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 	end
 
 	-- 2. Houses on a ring around the centre (evenly spread + jitter).
-	local target = pr:next(HOUSES_MIN, HOUSES_MAX)
 	local base_angle = pr:next(0, 9999) / 10000 * math.pi * 2
-	local r_in = math.max(9, math.floor(RADIUS * 0.5))
-	local r_span = math.max(1, RADIUS - r_in)
+	local r_in = math.max(9, math.floor(eff_radius * 0.5))
+	local r_span = math.max(1, eff_radius - r_in)
 	local house_count = 0
 	for i = 1, target do
 		local slot = base_angle + (i - 1) * (math.pi * 2 / target) + (pr:next(-40, 40) / 100)

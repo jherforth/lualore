@@ -45,10 +45,10 @@ lualore_village_terraform (Village terraforming) bool true
 lualore_village_terraform_max (Village terraform band) int 8 2 16
 
 # Minimum number of houses per village (placed on a ring around the centre).
-lualore_village_houses_min (Village houses minimum) int 4 1 20
+lualore_village_houses_min (Village houses minimum) int 5 1 20
 
 # Maximum number of houses per village (placed on a ring around the centre).
-lualore_village_houses_max (Village houses maximum) int 8 1 20
+lualore_village_houses_max (Village houses maximum) int 20 1 20
 
 # How far houses may be placed from the village centre, in nodes.
 lualore_village_radius (Village house radius) int 22 8 60
