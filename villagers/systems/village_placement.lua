@@ -50,6 +50,10 @@
 --   lualore_village_central_chance  (float, default 0.45)
 --   lualore_village_y_max           (int,   default 200)
 --   lualore_village_y_min           (int,   default -2)
+--
+-- The look of the ground itself - the irregular site outline, the patchy
+-- surface, the paths and the greenery between the houses - lives in
+-- villagers/systems/village_ground.lua, with its own settings.
 -- ===================================================================
 
 local S = minetest.get_translator("lualore")
@@ -375,12 +379,14 @@ end
 -- stand on hilly maps. It fills dips up to `TERRAFORM_MAX` nodes deep
 -- and cuts hills up to the same height, keeps natural water columns
 -- untouched, blends the rim, and re-lays the original surface node on
--- top so the biome look survives.
--- Returns "ok" or "retry" (surroundings not generated yet - nothing is
--- written in that case).
+-- top so the biome look survives. `shape` (optional) gives the site its
+-- irregular outline; without one the site is a plain disc.
+-- Returns "ok" plus the list of columns it re-laid (which is what the
+-- dressing pass decorates), or "retry" when the surroundings are not
+-- generated yet - nothing is written in that case.
 -- ------------------------------------------------------------------
-local function terraform_area(cx, cz, floor_y, palette, eff_radius)
-	local zone_r = (eff_radius or RADIUS) + 14
+local function terraform_area(cx, cz, floor_y, palette, eff_radius, shape)
+	local zone_r = shape and shape.max_reach or ((eff_radius or RADIUS) + 14)
 	local y_lo = floor_y - TERRAFORM_MAX - 2
 	local y_hi = floor_y + 24
 	local minp = {x = cx - zone_r, y = y_lo, z = cz - zone_r}
@@ -402,8 +408,13 @@ local function terraform_area(cx, cz, floor_y, palette, eff_radius)
 
 	local processed, dropped = 0, 0
 	local changed = false
+	-- every column we re-lay, for the dressing pass (village_ground.lua)
+	local columns = {}
 	-- bowl/lens blending: the core is perfectly flat, then a ramp band lets
-	-- the ground step one node per block back up (hill side) or down (dip)
+	-- the ground step one node per block back up (hill side) or down (dip).
+	-- With a `shape` the flat core is a lobed blob instead of a disc and the
+	-- band breathes in and out around it, so no village reads as a stamped
+	-- circle (see villagers/systems/village_ground.lua).
 	local r_flat = (eff_radius or RADIUS) + 6
 	local band_w = 8
 
@@ -437,12 +448,17 @@ local function terraform_area(cx, cz, floor_y, palette, eff_radius)
 					dropped = dropped + 1
 				elseif t then
 					local dev = t - floor_y
+					local core_r, band = r_flat, band_w
+					if shape then
+						core_r, band = shape:profile(dx, dz)
+					end
 					local envelope
-					if rr2 <= r_flat * r_flat then
+					if rr2 <= core_r * core_r then
 						envelope = 0 -- the village core is perfectly flat
 					else
 						envelope = math.min(TERRAFORM_MAX,
-							math.floor((math.sqrt(rr2) - r_flat) * TERRAFORM_MAX / band_w))
+							math.floor((math.sqrt(rr2) - core_r) * TERRAFORM_MAX
+								/ math.max(1, band)))
 					end
 					if math.abs(dev) > TERRAFORM_MAX then
 						-- beyond the taming band (cliff side / deep chasm): leave it
@@ -456,6 +472,7 @@ local function terraform_area(cx, cz, floor_y, palette, eff_radius)
 							end
 							data[area:index(x, floor_y, z)] = c_top
 							changed = true
+							columns[#columns + 1] = {x = x, y = floor_y, z = z}
 						end
 						-- inside the ramp band: keep the natural slope
 					else
@@ -492,6 +509,7 @@ local function terraform_area(cx, cz, floor_y, palette, eff_radius)
 						end
 						data[area:index(x, target_y, z)] = c_top
 						changed = true
+						columns[#columns + 1] = {x = x, y = target_y, z = z}
 					end
 				end
 			end
@@ -509,7 +527,7 @@ local function terraform_area(cx, cz, floor_y, palette, eff_radius)
 		-- not keep stale light patches from the removed hills
 		minetest.fix_light(minp, maxp)
 	end
-	return "ok"
+	return "ok", columns
 end
 
 -- A building footprint must sit on (near-)level ground.
@@ -658,6 +676,13 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 	local target = pr:next(HOUSES_MIN, HOUSES_MAX)
 	local eff_radius = math.min(RADIUS + math.floor(math.max(0, target - 8) * 1.2), 36)
 
+	-- Organic outline for this site: the flattened core is a lobed blob
+	-- whose radius never dips below the house ring (eff_radius + 2), so
+	-- the layout below always finds level ground under every footprint.
+	local ground = lualore.village_ground
+	local shape = ground and ground.new_shape(
+		seed + 7717, eff_radius + 6, eff_radius + 2, 8) or nil
+
 	local aok = area_ok(center_x, center_z, floor_y, palette, top, bottom, eff_radius)
 	if aok == "retry" then
 		return "retry"
@@ -667,11 +692,14 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 	end
 
 	-- Level the ground around the site before planning the buildings
+	local site_columns
 	if TERRAFORM then
-		local tok = terraform_area(center_x, center_z, floor_y, palette, eff_radius)
+		local tok, cols = terraform_area(center_x, center_z, floor_y, palette,
+			eff_radius, shape)
 		if tok == "retry" then
 			return "retry"
 		end
+		site_columns = cols
 	end
 
 	local plans = {}
@@ -750,7 +778,32 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 			tostring(plan.rot), nil, true)
 	end
 
-	return true, house_count, central_count, floor_y
+	-- 4. Dress the bare ground the terraformer left behind: noise patches
+	--    of accent blocks, trodden earth and paths between the finished
+	--    buildings, then grass and flowers over the rest. Never fatal -
+	--    the village itself is already standing at this point.
+	local planted = 0
+	if ground and site_columns and #site_columns > 0 then
+		local ok, first, count = pcall(ground.dress, {
+			cx = center_x,
+			cz = center_z,
+			floor_y = floor_y,
+			palette = palette,
+			seed = seed,
+			shape = shape,
+			columns = site_columns,
+			plans = plans,
+		})
+		if ok then
+			planted = count or 0
+		else
+			-- pcall put the error message in the first result slot
+			minetest.log("warning",
+				"[lualore] Village ground dressing failed: " .. tostring(first))
+		end
+	end
+
+	return true, house_count, central_count, floor_y, planted
 end
 
 -- ------------------------------------------------------------------
@@ -823,7 +876,7 @@ local function attempt_cell(cell_x, cell_z, minp, maxp)
 			biome, palette.name or "?", tostring(node_name)))
 	end
 
-	local result, houses, centrals, floor_y =
+	local result, houses, centrals, floor_y, planted =
 		build_village(cx, cz, palette, seed, maxp.y, minp.y)
 	if result == "retry" then
 		local left = (pending[key] or 40) - 1
@@ -848,8 +901,8 @@ local function attempt_cell(cell_x, cell_z, minp, maxp)
 	if result then
 		record_village(cx, floor_y, cz, palette, houses, centrals)
 		minetest.log("action", string.format(
-			"[lualore] Village built (%s) at %d,%d,%d - %d houses, %d central buildings",
-			palette.name or "?", cx, floor_y, cz, houses, centrals))
+			"[lualore] Village built (%s) at %d,%d,%d - %d houses, %d central buildings, %d plants",
+			palette.name or "?", cx, floor_y, cz, houses, centrals, planted or 0))
 	end
 end
 
@@ -925,7 +978,7 @@ minetest.register_chatcommand("spawn_village", {
 				return false, "No village palette for this biome - pass one explicitly, e.g. /spawn_village grassland"
 			end
 		end
-		local result, houses, centrals, floor_y = lualore.villages.build_at(
+		local result, houses, centrals, floor_y, planted = lualore.villages.build_at(
 			math.floor(pos.x), math.floor(pos.z), palette.name)
 		if result == "retry" then
 			return false, "Area is not fully generated yet - try again in a second."
@@ -934,7 +987,9 @@ minetest.register_chatcommand("spawn_village", {
 			return false, "No suitable flat spot found here."
 		end
 		record_village(math.floor(pos.x), floor_y, math.floor(pos.z), palette, houses, centrals)
-		return true, string.format("Village built: %d houses, %d central buildings.", houses, centrals)
+		return true, string.format(
+			"Village built: %d houses, %d central buildings, %d plants.",
+			houses, centrals, planted or 0)
 	end,
 })
 

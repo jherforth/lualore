@@ -21,6 +21,24 @@ lualore.village_palettes.ice = {
 		"everness:frosted_snowblock",          -- frosted icesheet
 	},
 	offset = -6, -- schematic base is sunk 6 nodes into the ground (foundation)
+	-- Ground dressing (villagers/systems/village_ground.lua): drifts,
+	-- glare ice and bare earth where the snow was trodden through.
+	ground = {
+		accents = {
+			{"default:ice", 5, bare = true},
+			{"default:dirt_with_snow", 5},
+			{"default:permafrost_with_stones", 3, bare = true},
+		},
+		worn = "default:permafrost",
+		path = "default:ice",
+	},
+	plants = {
+		density = 0.6,
+		list = {
+			{"default:snow", 12},
+			{"default:dry_shrub", 2},
+		},
+	},
 	y_min = -1,
 	y_max = 40,
 	houses = {

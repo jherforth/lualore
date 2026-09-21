@@ -44,6 +44,23 @@ lualore_village_chance (Village spawn chance) float 0.9 0.0 1.0
 lualore_village_terraform (Village terraforming) bool true
 lualore_village_terraform_max (Village terraform band) int 8 2 16
 
+# Give the terraformed site a lobed, irregular outline instead of a circle.
+lualore_village_organic (Village organic outline) bool true
+
+# Scatter patches of accent ground blocks (worn dirt, gravel, dry grass ...)
+# over the levelled village floor instead of leaving one uniform surface.
+lualore_village_ground_noise (Village ground texture) bool true
+
+# Grass, flowers and shrubs around the buildings.
+lualore_village_vegetation (Village vegetation) bool true
+
+# How thickly the vegetation grows (0.0 = none, 1.0 = every free block).
+# Each biome scales this by its own factor - deserts stay sparse.
+lualore_village_plant_density (Village plant density) float 0.22 0.0 1.0
+
+# Trodden paths from every building to the village centre.
+lualore_village_paths (Village paths) bool true
+
 # Minimum number of houses per village (placed on a ring around the centre).
 lualore_village_houses_min (Village houses minimum) int 5 1 20
 

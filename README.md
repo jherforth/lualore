@@ -15,7 +15,7 @@ Villages generate naturally in six distinct biomes:
 - **Ice** - Hardy settlements in frozen tundra
 - **Jungle** - Tribal communities with unique customs
 
-Villages are placed deterministically: one candidate per grid cell (spacing and chance settings), with houses laid out on a ring around the centre and central buildings (church, market, stable) beside it — buildings can never overlap. Density is fully tunable in the settings; see `villagers/VILLAGE_PLACEMENT.md`.
+Villages are placed deterministically: one candidate per grid cell (spacing and chance settings), with houses laid out on a ring around the centre and central buildings (church, market, stable) beside it — buildings can never overlap. The site is levelled into an irregular, lobed clearing rather than a disc, then dressed with patchy ground, trodden paths between the houses and biome-appropriate grass, flowers and shrubs. Density is fully tunable in the settings; see `villagers/VILLAGE_PLACEMENT.md`.
 
 ### 👥 Villager Types
 

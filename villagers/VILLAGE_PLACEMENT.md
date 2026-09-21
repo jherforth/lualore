@@ -30,8 +30,8 @@ made building density nearly impossible to tune:
   the candidate maps to a palette (if the biome is unknown, the ground block
   under the candidate picks the palette instead).
 - The site is **terraformed** before anything is built
-  (`lualore_village_terraform`): the village floor becomes a clean, uniform
-  plain of the palette's ground block (dips filled, hills cut, up to
+  (`lualore_village_terraform`): the village floor is levelled to the
+  palette's ground block (dips filled, hills cut, up to
   `lualore_village_terraform_max` nodes of relief; plants and trees are
   cleared and lighting is refreshed). Around the flat core a ramp band lets
   the terrain step one node per block back up or down - a bowl rising into
@@ -39,6 +39,17 @@ made building density nearly impossible to tune:
   into the landscape. Water is left alone, cliffs beyond the band stay
   cliffs, and nothing is ever half-terraformed (unreadable surroundings
   retry without writing).
+- The levelled area is **not a circle**: its outline is built from a few
+  angular harmonics rolled per village, so every site is a different lobed
+  blob and the ramp band breathes in and out around it. The outline is
+  radial, so it is always one closed area and never dips inside the house
+  ring. See `villagers/systems/village_ground.lua`.
+- Once the buildings stand, the bare floor is **dressed**: coherent noise
+  patches of accent ground blocks, trodden earth against the walls, faint
+  paths from each building to the centre, then grass, flowers and shrubs
+  thickening away from the doorsteps. Only columns the terraformer actually
+  re-laid are dressed, so natural ground keeps whatever the mapgen grew
+  there.
 - The layout is **planned completely before anything is placed**: church,
   market and stable first (rolled separately), then houses evenly spread on a
   ring around the centre, each nudged until it fits without overlapping any
@@ -57,6 +68,11 @@ made building density nearly impossible to tune:
 | `lualore_village_chance` | `0.9` | Fraction of cells that attempt a village. |
 | `lualore_village_terraform` | `true` | Level the ground around each village site. |
 | `lualore_village_terraform_max` | `8` | Nodes of slope that may be cut/filled. |
+| `lualore_village_organic` | `true` | Lobed, irregular site outline instead of a circle. |
+| `lualore_village_ground_noise` | `true` | Accent-block patches over the levelled floor. |
+| `lualore_village_vegetation` | `true` | Grass, flowers and shrubs around the buildings. |
+| `lualore_village_plant_density` | `0.22` | How thickly they grow (each palette scales this). |
+| `lualore_village_paths` | `true` | Trodden paths from each building to the centre. |
 | `lualore_village_houses_min` | `5` | Minimum houses per village. |
 | `lualore_village_houses_max` | `20` | Maximum houses per village (bigger targets widen the layout and terraced area automatically). |
 | `lualore_village_radius` | `22` | Base scattering radius; grows with the rolled village size. |
@@ -74,6 +90,10 @@ Tuning recipes:
   widens automatically with the target; raise `lualore_village_radius`
   for even more spread at the top end.
 - **Fewer fancy buildings:** lower `lualore_village_central_chance`.
+- **Wilder / tidier villages:** raise `lualore_village_plant_density` (0.35+)
+  for overgrown hamlets, lower it (0.08) for swept ones. Set
+  `lualore_village_ground_noise` to `false` for the old uniform floor, or
+  `lualore_village_organic` to `false` to go back to circular sites.
 - **Bigger terraces / more hilly sites:** raise
   `lualore_village_terraform_max` (10–12) - more hills become village sites
   at the cost of bigger earthworks. Set `lualore_village_terraform` to
@@ -107,6 +127,20 @@ lualore.village_palettes.grassland = {
     offset = -6,          -- schematic base sunk into the ground (foundation)
     y_min = ..., y_max = ...,                    -- optional search band override
     water_ok = false,     -- lake shores allow water around them
+    ground = {            -- optional: how the levelled floor is textured
+        accents = {                              -- {node, percent of the site}
+            {"default:dirt", 7},
+            {"default:gravel", 2, bare = true},  -- `bare` = nothing grows here
+        },
+        worn = "default:dirt",                   -- trodden strip along the walls
+        path = "default:dirt",                   -- the paths to the centre
+    },
+    plants = {            -- optional: what grows between the houses
+        density = 1.0,                           -- scales lualore_village_plant_density
+        list = {{"default:grass_3", 7}, {"flowers:rose", 1}},   -- {node, weight}
+        bush = {stem = "default:bush_stem", leaves = "default:bush_leaves",
+                chance = 0.014},
+    },
     houses = {"grasslandhouse1.mts", ...},
     church = "grasslandchurch.mts",
     market = "grasslandmarket.mts",
@@ -115,7 +149,18 @@ lualore.village_palettes.grassland = {
 ```
 
 Adding a biome is just adding a table like this (or extra entries to an
-existing `houses` list).
+existing `houses` list). Every node named in `ground`/`plants` is checked
+against the node registry the first time the palette is used, so a palette
+may freely name blocks from mods a given world might not have - unknown
+ones are simply dropped. Leave both tables out and the site gets a generic
+dirt/gravel-and-grass dressing.
+
+One trap when picking ground nodes: minetest_game's "Grass spread" ABM turns
+any lit, uncovered `default:dirt` into whichever spreading dirt type sits
+next to it, so a path or a worn yard paved with plain dirt looks right for a
+few minutes and is then grassed back over. The palettes here use nodes the
+ABM leaves alone — gravel, sand, permafrost and the `_with_` surface
+variants (those are spreading types themselves, so they stay put).
 
 ## Notes
 

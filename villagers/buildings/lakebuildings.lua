@@ -24,6 +24,29 @@ lualore.village_palettes.lake = {
 		"naturalbiomes:alderswamp_litter",     -- alder swamp
 	},
 	offset = 0,      -- stilts are part of the schematics
+	-- Ground dressing (villagers/systems/village_ground.lua): a shoreline
+	-- of grass giving way to sand and gravel.
+	ground = {
+		accents = {
+			{"default:dirt_with_grass", 12},
+			{"default:sand", 8, bare = true},
+			{"default:gravel", 3, bare = true},
+		},
+		worn = "default:sand",   -- a scuffed shoreline around the stilts
+		path = "default:gravel",
+	},
+	plants = {
+		density = 0.9,
+		list = {
+			{"default:grass_2", 6}, {"default:grass_3", 6},
+			{"default:grass_4", 4}, {"default:grass_5", 3},
+			{"default:junglegrass", 2},
+			{"flowers:dandelion_white", 1}, {"flowers:viola", 1},
+			{"flowers:mushroom_brown", 1},
+		},
+		bush = {stem = "default:bush_stem", leaves = "default:bush_leaves",
+			chance = 0.01},
+	},
 	water_ok = true, -- houses may stand in shallow water
 	y_min = -2,
 	y_max = 4,

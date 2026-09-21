@@ -59,7 +59,10 @@ dofile(modpath .. "/villagers/buildings/desertbuildings.lua")
 dofile(modpath .. "/villagers/buildings/savannabuildings.lua")
 dofile(modpath .. "/wizards/cavebuildings.lua")
 
--- 3b. Deterministic village placement (grid + planned layouts)
+-- 3b. Village ground dressing (organic outlines, texture, vegetation)
+dofile(modpath .. "/villagers/systems/village_ground.lua")
+
+-- 3c. Deterministic village placement (grid + planned layouts)
 dofile(modpath .. "/villagers/systems/village_placement.lua")
 
 -- 4. Systems (villagers, mood, spawning)
