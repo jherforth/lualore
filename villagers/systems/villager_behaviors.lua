@@ -26,6 +26,7 @@ lualore.behaviors.config = {
 	state_wander_duration = 90,   -- Longer wander to give distance after socializing
 	state_social_duration = 20,   -- Short socializing burst, then wander away
 	state_rest_duration = 25,
+	state_work_duration = 120,  -- a shift at the workstation
 	-- Distance limits
 	spawn_wander_radius = 30,
 	max_distance_from_spawn = 50,
@@ -82,6 +83,7 @@ lualore.behaviors.states = {
 	WANDERING = "wandering",
 	SOCIALIZING = "socializing",
 	RESTING = "resting",
+	WORKING = "working",
 }
 
 --------------------------------------------------------------------
@@ -715,17 +717,30 @@ function lualore.behaviors.get_state_duration(state)
 		return lualore.behaviors.config.state_social_duration
 	elseif state == lualore.behaviors.states.RESTING then
 		return lualore.behaviors.config.state_rest_duration
+	elseif state == lualore.behaviors.states.WORKING then
+		return lualore.behaviors.config.state_work_duration
 	end
 	return 60
 end
 
--- Get next state in cycle (daytime only cycles through 3 states)
-function lualore.behaviors.get_next_state(current_state)
+-- Get next state in cycle.
+-- The villager jobs module decides the working day when it is loaded and
+-- enabled; `self` may be nil, and a nil answer from it means "no job" -
+-- either way we fall through to the original wander/socialise cycle, so
+-- turning jobs off restores exactly the old behaviour.
+function lualore.behaviors.get_next_state(self, current_state)
+	if self and lualore.jobs and lualore.jobs.pick_state then
+		local picked = lualore.jobs.pick_state(self, current_state)
+		if picked then
+			return picked
+		end
+	end
 	if current_state == lualore.behaviors.states.WANDERING then
 		return lualore.behaviors.states.SOCIALIZING
 	elseif current_state == lualore.behaviors.states.SOCIALIZING then
 		return lualore.behaviors.states.WANDERING  -- After socializing, wander away
-	elseif current_state == lualore.behaviors.states.RESTING then
+	elseif current_state == lualore.behaviors.states.RESTING
+			or current_state == lualore.behaviors.states.WORKING then
 		return lualore.behaviors.states.WANDERING
 	end
 	return lualore.behaviors.states.WANDERING
@@ -733,6 +748,9 @@ end
 
 -- Transition to new state
 function lualore.behaviors.transition_state(self, new_state)
+	if new_state ~= lualore.behaviors.states.WORKING then
+		self.nv_at_station = false
+	end
 	self.nv_behavior_state = new_state
 	self.nv_state_timer = 0
 	self.nv_state_target_reached = false
@@ -802,6 +820,42 @@ function lualore.behaviors.handle_resting_state(self)
 	return true
 end
 
+-- WORKING STATE: go to the claimed workstation and stay at it
+function lualore.behaviors.handle_working_state(self)
+	if not self.object then return false end
+
+	local work_pos = self.nv_work_pos
+	if not work_pos then
+		-- No station: behave exactly as an unemployed villager does.
+		self.nv_at_station = false
+		return false
+	end
+
+	local pos = self.object:get_pos()
+	if not pos then return false end
+
+	local dist = vector.distance(pos, work_pos)
+	if dist > 2.2 then
+		self.nv_at_station = false
+		self._target = work_pos
+		self.state = "walk"
+		self:set_animation("walk")
+		self.object:set_yaw(minetest.dir_to_yaw(vector.direction(pos, work_pos)))
+		-- false so update() still runs the stuck check on the way there,
+		-- the same reason the walk-home branch returns false
+		return false
+	end
+
+	-- Arrived: face the work and stay put. handle_doors got us through
+	-- any door on the way in.
+	self.nv_at_station = true
+	self._target = nil
+	self.state = "stand"
+	self:set_animation("stand")
+	self.object:set_yaw(minetest.dir_to_yaw(vector.direction(pos, work_pos)))
+	return true
+end
+
 -- Main state handler dispatcher
 function lualore.behaviors.handle_state_behavior(self)
 	local state = self.nv_behavior_state or lualore.behaviors.states.SOCIALIZING
@@ -812,6 +866,8 @@ function lualore.behaviors.handle_state_behavior(self)
 		return lualore.behaviors.handle_socializing_state(self)
 	elseif state == lualore.behaviors.states.RESTING then
 		return lualore.behaviors.handle_resting_state(self)
+	elseif state == lualore.behaviors.states.WORKING then
+		return lualore.behaviors.handle_working_state(self)
 	end
 
 	return false
@@ -853,6 +909,8 @@ function lualore.behaviors.handle_night_time_movement_with_avoidance(self)
 
 	local house_pos = lualore.behaviors.get_house_position(self)
 	if not house_pos then return false end
+
+	self.nv_at_station = false
 
 	if lualore.behaviors.is_at_house(self) then
 		-- Home. Settle by the bed instead of drifting straight back out:
@@ -965,7 +1023,7 @@ function lualore.behaviors.update(self, dtime)
 
 		-- Check if it's time to transition to next state
 		if self.nv_state_timer >= state_duration then
-			local next_state = lualore.behaviors.get_next_state(current_state)
+			local next_state = lualore.behaviors.get_next_state(self, current_state)
 			lualore.behaviors.transition_state(self, next_state)
 		end
 

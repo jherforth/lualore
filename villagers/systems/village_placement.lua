@@ -803,6 +803,27 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 		end
 	end
 
+	-- 5. Furnish the village with the workstations no schematic carries:
+	--    the anvil and forge, the altar, and a tilled field or two. This
+	--    has to come after dressing, which plants over every free column
+	--    and would otherwise bury them. Never fatal.
+	local ws = lualore.workstations
+	if ws and ws.furnish then
+		local ok, err = pcall(ws.furnish, {
+			cx = center_x,
+			cz = center_z,
+			floor_y = floor_y,
+			palette = palette,
+			seed = seed,
+			plans = plans,
+			columns = site_columns,
+		})
+		if not ok then
+			minetest.log("warning",
+				"[lualore] Village furnishing failed: " .. tostring(err))
+		end
+	end
+
 	return true, house_count, central_count, floor_y, planted
 end
 
@@ -950,6 +971,25 @@ lualore.villages = {
 		return build_village(x, z, palette, seed or (get_world_salt() + os.time() % 100000))
 	end,
 	get_palettes = get_palettes,
+
+	-- Nearest recorded village to a position, or nil. Returns the record
+	-- plus the key it is stored under - the village standing system keys
+	-- a player's reputation by exactly that string, so it has to be the
+	-- same one /find_village reports.
+	find_near = function(pos, radius)
+		radius = radius or 120
+		local best, best_key, best_dist
+		for key, rec in pairs(load_records()) do
+			if type(rec) == "table" and rec.x then
+				local dist = vector.distance(pos,
+					{x = rec.x, y = rec.y or pos.y, z = rec.z})
+				if dist <= radius and (best_dist == nil or dist < best_dist) then
+					best, best_key, best_dist = rec, key, dist
+				end
+			end
+		end
+		return best, best_key, best_dist
+	end,
 }
 
 -- ------------------------------------------------------------------

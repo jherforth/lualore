@@ -55,9 +55,17 @@ made building density nearly impossible to tune:
   ring around the centre, each nudged until it fits without overlapping any
   other footprint. Unreadable (not yet generated) nodes abort with a retry —
   a failed attempt can never leave a half-built village.
+- Once the ground is dressed the village is **furnished** with the
+  workstations no schematic contains - an anvil and forge, the cleric's
+  altar, and one or two tilled fields with water at their centre. Nothing
+  is placed unless the ground is level, open and clear of every building.
+  See `villagers/VILLAGER_JOBS.md`; `/furnish_village` retrofits a village
+  that already exists.
 - Villagers still spawn from the beds inside the placed schematics
   (`house_spawning.lua`), unchanged except for a slightly longer delay so it
-  always runs after placement.
+  always runs after placement. Which trade each bed gets is now dealt from
+  a tiered deck per village, so every village has a farmer, a smith and a
+  cleric rather than whatever six uniform rolls happened to produce.
 
 ## Settings
 

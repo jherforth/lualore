@@ -12,30 +12,10 @@ local friendly_classes = {
     "bum", "entertainer", "witch", "jeweler", "ranger"
 }
 
--- Marker nodes that identify biome types
-local marker_to_biome = {
-    -- Grassland
-    ["lualore:grasslandbarrel"] = "grassland",
-    ["lualore:grasslandaltar"] = "grassland",
-    -- Desert
-    ["lualore:hookah"] = "desert",
-    ["lualore:desertcarpet"] = "desert",
-    -- Ice
-    ["lualore:sledge"] = "ice",
-    -- Lake
-    ["lualore:fishtrap"] = "lake",
-    ["lualore:hangingfish"] = "lake",
-    -- Savanna
-    ["lualore:savannashrine"] = "savanna",
-    -- Jungle
-    ["lualore:jungleshrine"] = "jungle",
-}
-
--- Build marker list for detection
-local marker_list = {}
-for node, _ in pairs(marker_to_biome) do
-    table.insert(marker_list, node)
-end
+-- Marker node -> biome, shared with house_spawning.lua.
+-- Defined in villagers/blocks/aliases.lua.
+local marker_to_biome = lualore.village_markers
+local marker_list = lualore.village_marker_list
 
 -- Detect biome based on nearby marker nodes
 local function detect_biome(center_pos, radius)
@@ -179,7 +159,11 @@ minetest.register_chatcommand("populate_village", {
             if is_crystal_forest then
                 mob_name = "lualore:sky_folk"
             else
-                local class = friendly_classes[math.random(#friendly_classes)]
+                -- Same deck the automatic spawner uses, so a village
+                -- repopulated by hand gets the same spread of trades.
+                local class = (lualore.villager_deck
+                        and lualore.villager_deck.draw(bed_pos))
+                    or friendly_classes[math.random(#friendly_classes)]
                 mob_name = "lualore:" .. biome .. "_" .. class
             end
 

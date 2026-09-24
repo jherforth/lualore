@@ -7,36 +7,81 @@ local S = minetest.get_translator("lualore")
 -- Track which beds already have villagers (prevents duplicates)
 local beds_with_villagers = {}
 
--- Friendly villager classes (add/remove as you like)
-local friendly_classes = {
-    "farmer", "blacksmith", "fisherman", "cleric",
-    "bum", "entertainer", "witch", "jeweler", "ranger"
+-- Which trades a village fills, and in what order.
+--
+-- Picking uniformly at random per bed left a six-house village with a
+-- better than even chance of having no blacksmith, and nothing stopped
+-- it rolling four farmers. A plain shuffled deck barely helped: with
+-- twelve cards and six houses you still miss half the trades.
+--
+-- So the deck is dealt in tiers. The core trades come out first and are
+-- shuffled among themselves, then the specialists, then filler. A
+-- three-house hamlet therefore always has a farmer, a smith and a
+-- cleric; a twelve-house village has one of everything; past that the
+-- deck reshuffles and the common trades come round again.
+local class_tiers = {
+    {"farmer", "blacksmith", "cleric"},                  -- every village
+    {"fisherman", "jeweler", "entertainer", "ranger"},   -- if there is room
+    {"farmer", "bum", "farmer", "bum", "witch"},         -- filler
 }
 
--- Map every marker node to its biome (used to determine which villager type to spawn)
-local marker_to_biome = {
-    -- Grassland
-    ["lualore:grasslandbarrel"] = "grassland",
-    ["lualore:grasslandaltar"] = "grassland",
-    -- Desert
-    ["lualore:hookah"] = "desert",
-    ["lualore:desertcarpet"] = "desert",
-    -- Ice
-    ["lualore:sledge"] = "ice",
-    -- Lake
-    ["lualore:fishtrap"] = "lake",
-    ["lualore:hangingfish"] = "lake",
-    -- Savanna
-    ["lualore:savannashrine"] = "savanna",
-    -- Jungle
-    ["lualore:jungleshrine"] = "jungle",
-}
+-- One deck per village, keyed by the village the bed belongs to.
+local village_decks = {}
 
--- Build the full list of marker nodes for biome detection
-local marker_list = {}
-for node, _ in pairs(marker_to_biome) do
-    table.insert(marker_list, node)
+local function deck_key(bed_pos)
+    if lualore.villages and lualore.villages.find_near then
+        local _, key = lualore.villages.find_near(bed_pos, 90)
+        if key then
+            return key
+        end
+    end
+    -- No village record (hand-built house, or an older world): group beds
+    -- into 64-node cells so a cluster still shares one deck.
+    return math.floor(bed_pos.x / 64) .. "," .. math.floor(bed_pos.z / 64)
 end
+
+local function build_deck()
+    local deck = {}
+    -- Build it back to front, because drawing takes from the end.
+    for tier = #class_tiers, 1, -1 do
+        local cards = {}
+        for i, class in ipairs(class_tiers[tier]) do
+            cards[i] = class
+        end
+        -- Fisher-Yates within the tier, so the order a village fills up
+        -- is not the order the tier is written in.
+        for i = #cards, 2, -1 do
+            local j = math.random(i)
+            cards[i], cards[j] = cards[j], cards[i]
+        end
+        for _, class in ipairs(cards) do
+            deck[#deck + 1] = class
+        end
+    end
+    return deck
+end
+
+-- Published so village_commands.lua's /populate_village fills a village
+-- from the same deck rather than rolling its own uniform pick.
+local function draw_class(bed_pos)
+    local key = deck_key(bed_pos)
+    local deck = village_decks[key]
+    if not deck or #deck == 0 then
+        deck = build_deck()
+        village_decks[key] = deck
+    end
+    return table.remove(deck)
+end
+
+lualore.villager_deck = {draw = draw_class, tiers = class_tiers}
+
+-- Marker node -> biome. Defined once in villagers/blocks/aliases.lua,
+-- which also maps the legacy nativevillages: names the schematics store.
+-- The copy that used to live here named three nodes that do not exist,
+-- so biome detection always failed and every village spawned grassland
+-- villagers.
+local marker_to_biome = lualore.village_markers
+local marker_list = lualore.village_marker_list
 
 -- Save/load system
 local storage = minetest.get_mod_storage()
@@ -235,7 +280,7 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
             end
 
             -- Spawn the villager
-            local class = friendly_classes[math.random(#friendly_classes)]
+            local class = draw_class(bed_pos)
             local mob_name = "lualore:" .. biome .. "_" .. class
 
             local obj = minetest.add_entity(spawn_pos, mob_name)

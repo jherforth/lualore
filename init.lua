@@ -39,6 +39,11 @@ end
 -- ===================================================================
 
 -- 1. Nodes & blocks (must come first)
+--    aliases.lua first: it maps the legacy nativevillages: names baked
+--    into the schematics onto this mod's nodes, and owns the one shared
+--    biome-marker table that house_spawning and village_commands read.
+dofile(modpath .. "/villagers/blocks/aliases.lua")
+dofile(modpath .. "/villagers/blocks/workstations.lua")
 dofile(modpath .. "/villagers/blocks/jungleblocks.lua")
 dofile(modpath .. "/villagers/blocks/savannablocks.lua")
 dofile(modpath .. "/villagers/blocks/arcticblocks.lua")
@@ -63,11 +68,13 @@ dofile(modpath .. "/wizards/cavebuildings.lua")
 dofile(modpath .. "/villagers/systems/village_ground.lua")
 
 -- 3c. Deterministic village placement (grid + planned layouts)
+dofile(modpath .. "/villagers/systems/village_workstations.lua")
 dofile(modpath .. "/villagers/systems/village_placement.lua")
 
 -- 4. Systems (villagers, mood, spawning)
 dofile(modpath .. "/villagers/systems/npcmood.lua")
 dofile(modpath .. "/villagers/systems/villager_behaviors.lua")
+dofile(modpath .. "/villagers/systems/villager_jobs.lua")
 dofile(modpath .. "/villagers/systems/smart_doors.lua")
 dofile(modpath .. "/villagers/systems/witch_magic.lua")
 dofile(modpath .. "/wizards/wizard_magic.lua")

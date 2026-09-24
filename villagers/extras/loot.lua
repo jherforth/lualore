@@ -204,4 +204,46 @@ end
 wrap_chest_rightclick("default:chest")
 wrap_chest_rightclick("default:chest_locked")
 
+-- ===================================================================
+-- PUBLIC API
+-- ===================================================================
+-- Everything above was file-local, so nothing else could reward a
+-- player with biome-appropriate treasure. The villager jobs - the
+-- jeweler's appraisals in particular - want exactly these tables, so
+-- they are published here rather than copied.
+--
+-- `roll` returns a list of {name, count} without touching an inventory,
+-- which is what a reward panel needs; `fill_chest` is the existing
+-- chest filler, unchanged.
+lualore.loot = {
+	tables = loot_tables,
+
+	for_pos = function(pos)
+		return get_loot_table_for_biome(pos)
+	end,
+
+	fill_chest = function(pos, loot_table)
+		return fill_chest_with_loot(pos,
+			loot_table or get_loot_table_for_biome(pos))
+	end,
+
+	roll = function(loot_table, picks)
+		local out = {}
+		if not loot_table or #loot_table == 0 then
+			return out
+		end
+		for _ = 1, (picks or 1) do
+			local entry = loot_table[math.random(#loot_table)]
+			if entry and math.random() < (entry.chance or 1)
+					and minetest.registered_items[entry.name] then
+				local count = math.random(entry.min or 1, entry.max or 1)
+				if count > 0 then
+					out[#out + 1] = {name = entry.name, count = count}
+				end
+			end
+		end
+		return out
+	end,
+}
+
 minetest.log("action", "[lualore] Loot system loaded - schematic chests will have treasure")
