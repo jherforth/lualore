@@ -651,6 +651,14 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 				end
 			end
 
+			-- EMPTY HAND: ask about their work. Checked before the
+			-- feeding branches so it cannot swallow a held item.
+			if item_name == "" and lualore.jobs and lualore.jobs.on_interact then
+				if lualore.jobs.on_interact(self, clicker) then
+					return
+				end
+			end
+
 			-- Feed with bread (reduces hunger and heals)
 			if item_name == "farming:bread" then
 				minetest.log("action", "[lualore] Bread feeding triggered")

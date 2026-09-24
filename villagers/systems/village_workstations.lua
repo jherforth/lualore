@@ -259,7 +259,9 @@ local function place_farm(site, map, pr)
 	local stake_pos = {x = stake_x, y = y + 1, z = stake_z}
 	minetest.set_node(stake_pos, {name = "lualore:field_stake"})
 	if lualore.field_plot then
-		lualore.field_plot.set_bounds(stake_pos, minx, minz, maxx, maxz, y)
+		-- record the crop so the farmer re-sows the right thing
+		local crop_base = crop and crop:match("^(.*)_%d+$") or nil
+		lualore.field_plot.set_bounds(stake_pos, minx, minz, maxx, maxz, y, crop_base)
 	end
 
 	if not soil then

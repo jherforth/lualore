@@ -750,6 +750,7 @@ end
 function lualore.behaviors.transition_state(self, new_state)
 	if new_state ~= lualore.behaviors.states.WORKING then
 		self.nv_at_station = false
+		self.nv_work_spot = nil
 	end
 	self.nv_behavior_state = new_state
 	self.nv_state_timer = 0
@@ -824,7 +825,10 @@ end
 function lualore.behaviors.handle_working_state(self)
 	if not self.object then return false end
 
-	local work_pos = self.nv_work_pos
+	-- A job may point the villager at a spot away from the station
+	-- itself - the farmer works the rows of his field rather than
+	-- standing at the stake all day.
+	local work_pos = self.nv_work_spot or self.nv_work_pos
 	if not work_pos then
 		-- No station: behave exactly as an unemployed villager does.
 		self.nv_at_station = false
@@ -834,8 +838,12 @@ function lualore.behaviors.handle_working_state(self)
 	local pos = self.object:get_pos()
 	if not pos then return false end
 
+	-- How close counts as "there". Standing next to an anvil is the
+	-- default; a farmer wants to be on top of the plant he is working,
+	-- so his job asks for a tighter reach.
+	local reach = self.nv_work_reach or 2.2
 	local dist = vector.distance(pos, work_pos)
-	if dist > 2.2 then
+	if dist > reach then
 		self.nv_at_station = false
 		self._target = work_pos
 		self.state = "walk"
@@ -911,6 +919,7 @@ function lualore.behaviors.handle_night_time_movement_with_avoidance(self)
 	if not house_pos then return false end
 
 	self.nv_at_station = false
+	self.nv_work_spot = nil
 
 	if lualore.behaviors.is_at_house(self) then
 		-- Home. Settle by the bed instead of drifting straight back out:

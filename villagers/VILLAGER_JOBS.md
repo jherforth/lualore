@@ -28,7 +28,7 @@ A villager with no workstation behaves exactly as it always did.
 | Fisherman | `lualore:fishtrap`, `lualore:hangingfish` |
 | Jeweler | `vessels:shelf`, `lualore:grasslandbarrel` |
 | Entertainer | `lualore:hookah`, `lualore:sledge`, `lualore:jungleshrine`, `lualore:savannavshrine`, `lualore:desertcrpet` |
-| Farmer | `lualore:field_stake` |
+| Farmer | `lualore:field_stake` (see below) |
 | Bum, Ranger | nothing — their work is walking, and arrives in a later phase |
 | Witch | deliberately has no job; her whole tick belongs to `witch_magic.lua` |
 
@@ -89,6 +89,29 @@ three farmers. The overall spread stays farmer 25%, bum 16%, everything else 8%.
   restart. The claimed node also carries a `lualore_station` meta field and an infotext, so
   you can see whose workplace it is by looking at it.
 - Claims are released when the villager dies.
+
+## The farmer
+
+The first class with a real mechanic. He works the plot his field stake describes:
+
+- **Harvests** anything ripe into his stock and puts the ground straight back to seed.
+- **Sows** bare tilled ground — so a field you have stripped yourself fills back in.
+- **Tends** what is still growing, nudging a crop on a stage roughly one time in three.
+
+Growth itself is left to the farming mod's own ABM. The tending nudge is what makes him
+look busy; it is deliberately too slow to race a field to ripeness, and a plot keeps working
+with no farmer anywhere near it. The plot is ordinary farmland: harvest it, extend it, or
+ignore him entirely.
+
+**Right-click him with an empty hand** and he hands over what he has gathered — once per
+in-game day. Ask again the same day and he tells you so; his stock keeps building in the
+meantime. Stock is capped at eight kinds of item and 99 of each, so nothing accumulates
+without bound while you are away.
+
+Farmers use a tighter `work_reach` (1.2 nodes) than the default 2 that suits standing at an
+anvil, so they walk the rows properly instead of reaching half the field from one spot.
+
+Digging up the stake stops the job cleanly — he writes nothing and goes back to wandering.
 
 ## Commands
 

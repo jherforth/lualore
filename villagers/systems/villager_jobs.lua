@@ -477,6 +477,9 @@ function lualore.jobs.update(self, dtime, job_def)
 	end
 	self.nv_job_timer = 0
 
+	-- Tell the behaviour module how close this job needs to get.
+	self.nv_work_reach = job_def and job_def.work_reach or nil
+
 	if not self.nv_at_station then
 		return
 	end
@@ -498,6 +501,94 @@ function lualore.jobs.update(self, dtime, job_def)
 end
 
 -- ------------------------------------------------------------------
+-- Stock: what a villager has made and not yet given away
+-- ------------------------------------------------------------------
+-- Never put job output in self.drops. That table is the death loot AND
+-- the trade reward, and it lives on the mob prototype shared by every
+-- villager of the class.
+local STOCK_STACK_CAP = 99
+local STOCK_KIND_CAP = 8
+
+function lualore.jobs.add_stock(self, item_name, count)
+	if not item_name or count == nil or count <= 0 then
+		return
+	end
+	self.nv_stock = self.nv_stock or {}
+	local held = self.nv_stock[item_name]
+	if not held then
+		local kinds = 0
+		for _ in pairs(self.nv_stock) do
+			kinds = kinds + 1
+		end
+		if kinds >= STOCK_KIND_CAP then
+			return -- already carrying as much variety as it can
+		end
+		held = 0
+	end
+	self.nv_stock[item_name] = math.min(held + count, STOCK_STACK_CAP)
+end
+
+function lualore.jobs.stock_count(self)
+	local total = 0
+	for _, count in pairs(self.nv_stock or {}) do
+		total = total + count
+	end
+	return total
+end
+
+-- Hand the whole stock over, into the inventory where it fits and at the
+-- player's feet where it does not.
+function lualore.jobs.give_stock(self, player)
+	local stock = self.nv_stock
+	if not stock then
+		return {}
+	end
+	local inv = player:get_inventory()
+	local pos = player:get_pos()
+	local given = {}
+	for name, count in pairs(stock) do
+		if count > 0 and minetest.registered_items[name] then
+			local stack = ItemStack(name .. " " .. count)
+			local leftover = inv and inv:add_item("main", stack) or stack
+			if leftover and not leftover:is_empty() then
+				minetest.add_item(pos, leftover)
+			end
+			given[#given + 1] = {name = name, count = count}
+		end
+	end
+	self.nv_stock = {}
+	return given
+end
+
+-- One gift per villager per in-game day.
+function lualore.jobs.can_share(self)
+	local today = minetest.get_day_count and minetest.get_day_count() or 0
+	return (self.nv_last_share_day or -1) ~= today
+end
+
+function lualore.jobs.mark_shared(self)
+	self.nv_last_share_day = minetest.get_day_count
+		and minetest.get_day_count() or 0
+end
+
+-- ------------------------------------------------------------------
+-- Player interaction, dispatched to the class
+-- ------------------------------------------------------------------
+-- Called from villagers.lua when a player right-clicks a villager with
+-- an empty hand. Returns true when the class handled it.
+function lualore.jobs.on_interact(self, player)
+	if not ENABLED or not player then
+		return false
+	end
+	local class = lualore.jobs.get_class(self)
+	local def = class and lualore.jobs.classes[class]
+	if def and def.on_interact then
+		return def.on_interact(self, player) == true
+	end
+	return false
+end
+
+-- ------------------------------------------------------------------
 -- Persistence
 -- ------------------------------------------------------------------
 -- Plain data only. villagers.lua's get_staticdata returns "" if
@@ -510,6 +601,7 @@ function lualore.jobs.get_save_data(self)
 		nv_work_pos = self.nv_work_pos,
 		nv_stock = self.nv_stock,
 		nv_no_station_until = self.nv_no_station_until,
+		nv_last_share_day = self.nv_last_share_day,
 	}
 end
 
@@ -521,6 +613,7 @@ function lualore.jobs.on_activate_extra(self, data)
 	self.nv_work_pos = data.nv_work_pos
 	self.nv_stock = data.nv_stock or {}
 	self.nv_no_station_until = data.nv_no_station_until
+	self.nv_last_share_day = data.nv_last_share_day
 end
 
 -- ------------------------------------------------------------------

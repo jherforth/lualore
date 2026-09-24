@@ -145,6 +145,9 @@ minetest.register_node("lualore:field_stake", {
 		meta:set_int("plot_minz", pos.z - 2)
 		meta:set_int("plot_maxz", pos.z + 2)
 		meta:set_int("plot_y", pos.y - 1)
+		if minetest.registered_nodes["farming:wheat_1"] then
+			meta:set_string("plot_crop", "farming:wheat")
+		end
 		meta:set_string("infotext", S("Field"))
 	end,
 })
@@ -168,19 +171,26 @@ function lualore.field_plot.bounds(pos)
 	if minx == 0 and maxx == 0 then
 		return nil
 	end
+	local crop = meta:get_string("plot_crop")
 	return {
 		minx = minx, maxx = maxx,
 		minz = meta:get_int("plot_minz"), maxz = meta:get_int("plot_maxz"),
 		y = meta:get_int("plot_y"),
+		-- The crop this field is sown with, so the farmer knows what to
+		-- put back after a harvest (his own or the player's).
+		crop = (crop ~= "" and crop) or nil,
 	}
 end
 
-function lualore.field_plot.set_bounds(pos, minx, minz, maxx, maxz, y)
+function lualore.field_plot.set_bounds(pos, minx, minz, maxx, maxz, y, crop)
 	local meta = minetest.get_meta(pos)
 	meta:set_int("plot_minx", minx)
 	meta:set_int("plot_maxx", maxx)
 	meta:set_int("plot_minz", minz)
 	meta:set_int("plot_maxz", maxz)
 	meta:set_int("plot_y", y)
+	if crop then
+		meta:set_string("plot_crop", crop)
+	end
 	meta:set_string("infotext", S("Field"))
 end
