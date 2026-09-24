@@ -12,6 +12,10 @@ lualore.behaviors.config = {
 	home_radius = 5,  -- Night time radius (close to bed)
 	daytime_home_radius = 30,  -- Day time radius (larger roaming area)
 	sleep_radius = 3,
+	-- How close to the bed counts as "home". Three nodes was enough to
+	-- stop a villager dead in its own doorway, blocking the door it had
+	-- just opened; two puts it properly in the room.
+	bed_arrival = 2,
 	social_detection_radius = 5,
 	food_share_detection_radius = 8,
 	social_interaction_cooldown = 300,  -- 5 minutes between socializations with same villager
@@ -63,6 +67,14 @@ function lualore.behaviors.is_day_time()
 	return not lualore.behaviors.is_night_time()
 end
 
+-- Villagers set off home at dusk rather than at the stroke of night, so
+-- they are indoors around the time the doors shut (smart_doors closes
+-- them at 10PM and opens them again at 6AM).
+function lualore.behaviors.is_home_time()
+	local tod = lualore.behaviors.get_time_of_day()
+	return tod >= 0.79 or tod < 0.25
+end
+
 --------------------------------------------------------------------
 -- STATE MACHINE DEFINITIONS
 --------------------------------------------------------------------
@@ -108,164 +120,112 @@ function lualore.behaviors.has_house(self)
 end
 
 --------------------------------------------------------------------
--- DOOR INTERACTION SYSTEM (Simplified using smart_doors.lua)
+-- DOOR INTERACTION SYSTEM
 --------------------------------------------------------------------
+-- Villagers open the door they are about to walk through and close it
+-- again once they are clear of it.
+--
+-- What was here before could not work, for three reasons, all of them in
+-- the "is this door closed?" test:
+--
+--   * It only counted `_b` doors as closed. Which hinge a door uses is
+--     whatever the schematic stored, and `_a` is just as closed - of the
+--     nine closed door variants actually present in this mod's
+--     schematics it recognised two.
+--   * It counted `doors:hidden` as a closed door. That node is the
+--     invisible upper half of EVERY door, open or shut, so a villager
+--     within a few nodes of any doorway went into a "wait for the door"
+--     state, stood still for eight seconds and then threw its
+--     destination away. That is why they never made it home.
+--   * It only matched `doors:door_*`, so the Everness doors used by
+--     several house schematics were invisible to it.
+--
+-- The classification now lives in one place, smart_doors.lua, which the
+-- scheduled 6AM/10PM sweep uses as well.
+--------------------------------------------------------------------
+local DOOR_REACH         = 2     -- how far a villager reaches for a door
+local DOOR_SCAN_INTERVAL = 0.4   -- seconds between door scans
+local DOOR_CLEAR         = 1.8   -- far enough past a door to shut it
+local DOOR_HOLD          = 10    -- give up holding a door open after this
 
--- Check if a node is a closed door
-local function is_closed_door(node_name)
-	return node_name and (
-		node_name:match("^doors:door_.*_b$") or
-		node_name:match("^doors:hidden$")
-	)
+-- Is anybody else standing in the doorway? Never shut a door on them.
+function lualore.behaviors.doorway_busy(door_pos, me)
+	local myself = me and me.object
+	for _, obj in ipairs(minetest.get_objects_inside_radius(door_pos, 1.6)) do
+		if obj ~= myself then
+			if obj:is_player() then
+				return true
+			end
+			local ent = obj:get_luaentity()
+			if ent and ent.name and ent.name:find("lualore:", 1, true) == 1 then
+				return true
+			end
+		end
+	end
+	return false
 end
 
--- Find the nearest door in the general direction of target
-function lualore.behaviors.find_nearest_door_to_target(self, target_pos)
-	if not self.object or not target_pos then return nil end
+function lualore.behaviors.handle_doors(self, dtime, nav_target)
+	local doors_api = lualore.smart_doors
+	if not (doors_api and doors_api.find_closed_near) then return end
+	if not self.object then return end
 	local pos = self.object:get_pos()
-	if not pos then return nil end
+	if not pos then return end
 
-	local direction = vector.direction(pos, target_pos)
-	local distance_to_target = vector.distance(pos, target_pos)
-
-	-- Only check for doors if target is far enough away
-	if distance_to_target < 3 then return nil end
-
-	-- Search in a corridor towards the target
-	local max_search_dist = math.min(15, distance_to_target)
-	local nearest_door = nil
-	local nearest_dist = 999
-
-	-- Check positions in the direction of target
-	for i = 2, max_search_dist do
-		local check_pos = vector.add(pos, vector.multiply(direction, i))
-		check_pos = vector.round(check_pos)
-
-		-- Check this position and adjacent positions (including vertical)
-		for dy = -1, 2 do
-			for dx = -1, 1 do
-				for dz = -1, 1 do
-					local scan_pos = {
-						x = check_pos.x + dx,
-						y = check_pos.y + dy,
-						z = check_pos.z + dz
-					}
-
-					local node = minetest.get_node(scan_pos)
-					if is_closed_door(node.name) then
-						local dist = vector.distance(pos, scan_pos)
-						if dist < nearest_dist and dist > 1.5 then
-							nearest_dist = dist
-							nearest_door = scan_pos
-						end
-					end
-				end
-			end
+	-- Close the door we opened, once we are through and clear of it.
+	-- "Through" means on the far side from where we opened it, not just
+	-- far away: a villager reaches a door from up to DOOR_REACH nodes
+	-- back, so distance alone would have it shut the door again before
+	-- it ever stepped over the threshold.
+	local mine = self.nv_door_opened
+	if mine then
+		local dist = vector.distance(pos, mine)
+		local held = minetest.get_gametime() - (self.nv_door_opened_at or 0)
+		local crossed = false
+		local from = self.nv_door_from
+		if from then
+			local ax, az = pos.x - mine.x, pos.z - mine.z
+			local bx, bz = from.x - mine.x, from.z - mine.z
+			crossed = (ax * bx + az * bz) < 0
 		end
-
-		-- If we found a door, stop searching (only path to first door)
-		if nearest_door then
-			break
+		if (crossed and dist > DOOR_CLEAR) or held > DOOR_HOLD then
+			if dist > DOOR_CLEAR and not lualore.behaviors.doorway_busy(mine, self) then
+				doors_api.set(mine, false)
+			end
+			self.nv_door_opened = nil
+			self.nv_door_from = nil
 		end
 	end
 
-	return nearest_door
-end
+	self.nv_door_timer = (self.nv_door_timer or 0) + (dtime or 0)
+	if self.nv_door_timer < DOOR_SCAN_INTERVAL then return end
+	self.nv_door_timer = 0
 
--- Handle waiting at closed doors
-function lualore.behaviors.handle_door_waiting(self)
-	if not self.object then return false end
-	local pos = self.object:get_pos()
-	if not pos then return false end
+	local door_pos = doors_api.find_closed_near(pos, DOOR_REACH)
+	if not door_pos then return end
 
-	-- Initialize door waiting state
-	if not self.nv_waiting_for_door then
-		self.nv_waiting_for_door = false
-		self.nv_door_wait_start = 0
-		self.nv_waiting_door_pos = nil
+	-- Only open a door we are actually heading towards, so a villager
+	-- walking past a house does not fling its door open.
+	if nav_target then
+		local to_door = vector.direction(pos, door_pos)
+		local to_goal = vector.direction(pos, nav_target)
+		if (to_door.x * to_goal.x + to_door.z * to_goal.z) < 0 then
+			return
+		end
 	end
 
-	-- Check if there's a closed door nearby (within 4 blocks)
-	local found_closed_door = false
-	local door_pos = nil
-
-	for dx = -3, 3 do
-		for dy = -1, 2 do
-			for dz = -3, 3 do
-				local check_pos = {
-					x = math.floor(pos.x) + dx,
-					y = math.floor(pos.y) + dy,
-					z = math.floor(pos.z) + dz
-				}
-				local node = minetest.get_node(check_pos)
-				if is_closed_door(node.name) then
-					local dist = vector.distance(pos, check_pos)
-					if dist < 4 then
-						found_closed_door = true
-						door_pos = check_pos
-						break
-					end
-				end
-			end
-			if found_closed_door then break end
-		end
-		if found_closed_door then break end
-	end
-
-	local current_time = minetest.get_gametime()
-
-	if found_closed_door then
-		-- Start or continue waiting
-		if not self.nv_waiting_for_door then
-			self.nv_waiting_for_door = true
-			self.nv_door_wait_start = current_time
-			self.nv_waiting_door_pos = door_pos
-
-			-- Stop movement while waiting
-			if self.object then
-				self.object:set_velocity({x=0, y=0, z=0})
-			end
-			self.state = "stand"
-			self:set_animation("stand")
-		end
-
-		-- Check timeout (8 seconds - longer to give smart doors time to open)
-		local wait_time = current_time - self.nv_door_wait_start
-		if wait_time > 8 then
-			-- Timeout - give up on this door
-			self.nv_waiting_for_door = false
-			self.nv_waiting_door_pos = nil
-			self._target = nil  -- Clear target to find new path
-			return false
-		end
-
-		-- Check if door has opened
-		local node = minetest.get_node(door_pos)
-		if not is_closed_door(node.name) then
-			-- Door opened! Continue movement
-			self.nv_waiting_for_door = false
-			self.nv_waiting_door_pos = nil
-			return false
-		end
-
-		-- Still waiting
-		return true
-	else
-		-- No closed door nearby, reset waiting state
-		if self.nv_waiting_for_door then
-			self.nv_waiting_for_door = false
-			self.nv_waiting_door_pos = nil
-		end
-		return false
+	if doors_api.set(door_pos, true) then
+		self.nv_door_opened = vector.new(door_pos)
+		self.nv_door_from = vector.new(pos)
+		self.nv_door_opened_at = minetest.get_gametime()
 	end
 end
-
 
 --------------------------------------------------------------------
 -- NIGHT-TIME BED PATHFINDING (Simplified - no sleeping animation)
 --------------------------------------------------------------------
 function lualore.behaviors.should_go_to_bed(self)
-	return lualore.behaviors.is_night_time() and lualore.behaviors.has_house(self)
+	return lualore.behaviors.is_home_time() and lualore.behaviors.has_house(self)
 end
 
 function lualore.behaviors.is_at_house(self)
@@ -278,7 +238,19 @@ function lualore.behaviors.is_at_house(self)
 	local house_pos = lualore.behaviors.get_house_position(self)
 	local dist = vector.distance(pos, house_pos)
 
-	return dist <= lualore.behaviors.config.sleep_radius
+	if dist > lualore.behaviors.config.bed_arrival then
+		return false
+	end
+	-- Being close to the bed is not the same as being in the room with
+	-- it: a bed against an outside wall would otherwise let a villager
+	-- "arrive" while still standing in the street. Right next to it we
+	-- take it on trust, since furniture can break the sight line.
+	if dist <= 1.5 then
+		return true
+	end
+	local eye = {x = pos.x, y = pos.y + 1, z = pos.z}
+	local bed = {x = house_pos.x, y = house_pos.y + 0.5, z = house_pos.z}
+	return minetest.line_of_sight(eye, bed) == true
 end
 
 
@@ -307,43 +279,17 @@ function lualore.behaviors.get_activity_radius(self)
 	end
 end
 
+-- Where a villager should be heading right now, or nil to let the
+-- daytime state machine decide. Doors are no longer part of this: the
+-- villager opens whatever is in the way as it reaches it, so the route
+-- is simply "the bed" rather than a chain of door waypoints.
 function lualore.behaviors.update_movement_target(self)
 	if not lualore.behaviors.has_house(self) then return end
 	if not self.object then return end
 
-	local period = lualore.behaviors.get_time_period()
-
-	if period == "night" then
-		if not self.nv_sleeping and not lualore.behaviors.is_at_house(self) then
-			local target = lualore.behaviors.get_house_position(self)
-
-			-- Check for doors in the path
-			if target and not self.nv_waiting_for_door then
-				local door_pos = lualore.behaviors.find_nearest_door_to_target(self, target)
-				if door_pos then
-					-- Store the final destination
-					self.nv_final_destination = target
-					-- Return door position as intermediate waypoint
-					return door_pos
-				end
-			end
-
-			-- If we have a final destination and reached the door, continue to final destination
-			if self.nv_final_destination then
-				local pos = self.object:get_pos()
-				if pos and self._target then
-					local dist_to_waypoint = vector.distance(pos, self._target)
-					if dist_to_waypoint < 2 then
-						-- Reached door waypoint, now go to final destination
-						local final_dest = self.nv_final_destination
-						self.nv_final_destination = nil
-						return final_dest
-					end
-				end
-			end
-
-			return target
-		end
+	if lualore.behaviors.is_home_time()
+			and not lualore.behaviors.is_at_house(self) then
+		return lualore.behaviors.get_house_position(self)
 	end
 
 	return nil
@@ -437,8 +383,15 @@ function lualore.behaviors.find_npc_to_socialize_with(self)
 			if npc_pos then
 				local dist = vector.distance(pos, npc_pos)
 				local npc_id = tostring(npc.object)
-				local last_time = self.nv_social_partner_cooldowns[npc_id] or 0
-				local on_cooldown = (current_time - last_time) < lualore.behaviors.config.social_interaction_cooldown
+				-- No entry means "never socialised with this one", which is
+				-- not a cooldown. Defaulting the stamp to 0 made
+				-- `now - 0 < 300` true for the first five minutes of world
+				-- time, so on a fresh world nobody would socialise with
+				-- anybody - exactly while a new village is being watched.
+				local last_time = self.nv_social_partner_cooldowns[npc_id]
+				local on_cooldown = last_time ~= nil
+					and (current_time - last_time)
+						< lualore.behaviors.config.social_interaction_cooldown
 
 				if dist > 2 and dist < closest_dist and not on_cooldown then
 					closest_dist = dist
@@ -820,22 +773,8 @@ function lualore.behaviors.handle_socializing_state(self)
 				return true
 			end
 
-			-- Move towards the villager - always update target
-			-- Check for doors in path
-			if not self.nv_waiting_for_door then
-				local door_pos = lualore.behaviors.find_nearest_door_to_target(self, npc_pos)
-				if door_pos then
-					self.nv_final_destination = npc_pos
-					self._target = door_pos
-					self.state = "walk"
-					self:set_animation("walk")
-					local dir = vector.direction(pos, door_pos)
-					local yaw = minetest.dir_to_yaw(dir)
-					self.object:set_yaw(yaw)
-					return true
-				end
-			end
-
+			-- Move towards the villager. Any door in the way is opened by
+			-- handle_doors(), so we head straight for them.
 			self._target = npc_pos
 			self.state = "walk"
 			self:set_animation("walk")
@@ -894,23 +833,6 @@ function lualore.behaviors.handle_daytime_movement(self)
 		return false
 	end
 
-	-- Check for door waypoint completion first
-	if self.nv_final_destination and self._target then
-		local dist_to_waypoint = vector.distance(pos, self._target)
-		if dist_to_waypoint < 2 then
-			-- Reached door, continue to final destination
-			self._target = self.nv_final_destination
-			self.nv_final_destination = nil
-			self.state = "walk"
-			self:set_animation("walk")
-
-			local dir = vector.direction(pos, self._target)
-			local yaw = minetest.dir_to_yaw(dir)
-			self.object:set_yaw(yaw)
-			return true
-		end
-	end
-
 	-- Handle current state behavior
 	return lualore.behaviors.handle_state_behavior(self)
 end
@@ -922,63 +844,37 @@ function lualore.behaviors.handle_night_time_movement_with_avoidance(self)
 	if not lualore.behaviors.should_go_to_bed(self) then
 		return false
 	end
-
-	if lualore.behaviors.is_at_house(self) then
-		return true
+	if not self.object then return false end
+	local pos = self.object:get_pos()
+	if not pos then return false end
+	if self.order == "stand" or self.following then
+		return false
 	end
 
 	local house_pos = lualore.behaviors.get_house_position(self)
-	if house_pos and self.object then
-		local pos = self.object:get_pos()
-		if pos then
-			if self.order ~= "stand" and not self.following then
-				-- Check for door waypoint completion first
-				if self.nv_final_destination and self._target then
-					local dist_to_waypoint = vector.distance(pos, self._target)
-					if dist_to_waypoint < 2 then
-						-- Reached door, continue to final destination
-						self._target = self.nv_final_destination
-						self.nv_final_destination = nil
-						self.state = "walk"
-						self:set_animation("walk")
+	if not house_pos then return false end
 
-						local dir = vector.direction(pos, self._target)
-						local yaw = minetest.dir_to_yaw(dir)
-						self.object:set_yaw(yaw)
-						return false
-					end
-				end
-
-				local dist = vector.distance(pos, house_pos)
-				if dist > 1 then
-					-- Check for doors in path to house
-					if not self.nv_waiting_for_door then
-						local door_pos = lualore.behaviors.find_nearest_door_to_target(self, house_pos)
-						if door_pos then
-							self.nv_final_destination = house_pos
-							self._target = door_pos
-							self.state = "walk"
-							self:set_animation("walk")
-
-							local dir = vector.direction(pos, door_pos)
-							local yaw = minetest.dir_to_yaw(dir)
-							self.object:set_yaw(yaw)
-							return false
-						end
-					end
-
-					self._target = house_pos
-					self.state = "walk"
-					self:set_animation("walk")
-
-					local dir = vector.direction(pos, house_pos)
-					local yaw = minetest.dir_to_yaw(dir)
-					self.object:set_yaw(yaw)
-				end
-			end
-		end
+	if lualore.behaviors.is_at_house(self) then
+		-- Home. Settle by the bed instead of drifting straight back out:
+		-- mobs_redo would otherwise roll its walk chance and wander off,
+		-- which is what made villagers bob in and out all night.
+		self.nv_sleeping = true
+		self._target = nil
+		self.object:set_velocity({x = 0, y = 0, z = 0})
+		self.state = "stand"
+		self:set_animation("stand")
+		return true
 	end
 
+	-- Not home yet: head for the bed. Doors on the way are opened by
+	-- handle_doors(), so there is no waypoint juggling here any more.
+	self.nv_sleeping = false
+	self._target = house_pos
+	self.state = "walk"
+	self:set_animation("walk")
+	self.object:set_yaw(minetest.dir_to_yaw(vector.direction(pos, house_pos)))
+
+	-- false so the caller still runs the stuck check on the way home
 	return false
 end
 
@@ -1039,24 +935,29 @@ function lualore.behaviors.update(self, dtime)
 		return
 	end
 
-	-- Check if NPC is waiting for a door to open
-	if lualore.behaviors.handle_door_waiting(self) then
-		-- NPC is waiting, don't do anything else
-		return
+	-- Open the door ahead (and shut the one behind). This never blocks
+	-- movement - the villager keeps walking while the door swings.
+	local nav_target = self._target
+	if lualore.behaviors.is_home_time() and lualore.behaviors.has_house(self) then
+		nav_target = lualore.behaviors.get_house_position(self)
 	end
+	lualore.behaviors.handle_doors(self, dtime, nav_target)
 
 	-- Food pickup overrides all other movement
 	if lualore.behaviors.handle_walk_to_food(self) then
 		return
 	end
 
-	-- Night time overrides all state behavior
-	if lualore.behaviors.is_night_time() then
+	-- Going home overrides all state behavior
+	if lualore.behaviors.is_home_time() then
 		if lualore.behaviors.handle_night_time_movement_with_avoidance(self) then
 			return
 		end
 	else
-		-- Daytime: Update state timer and handle transitions
+		-- Daytime: out of bed and back to the village
+		self.nv_sleeping = false
+
+		-- Update state timer and handle transitions
 		self.nv_state_timer = (self.nv_state_timer or 0) + dtime
 
 		local current_state = self.nv_behavior_state or lualore.behaviors.states.WANDERING
@@ -1107,10 +1008,9 @@ function lualore.behaviors.get_save_data(self)
 		nv_last_social_time = self.nv_last_social_time,
 		nv_last_food_share_time = self.nv_last_food_share_time,
 		nv_last_player_greeting_time = self.nv_last_player_greeting_time,
-		nv_final_destination = self.nv_final_destination,
-		nv_waiting_for_door = self.nv_waiting_for_door,
-		nv_door_wait_start = self.nv_door_wait_start,
-		nv_waiting_door_pos = self.nv_waiting_door_pos,
+		nv_door_opened = self.nv_door_opened,
+		nv_door_from = self.nv_door_from,
+		nv_door_opened_at = self.nv_door_opened_at,
 		-- State machine data
 		nv_behavior_state = self.nv_behavior_state,
 		nv_state_timer = self.nv_state_timer,
@@ -1129,10 +1029,9 @@ function lualore.behaviors.load_save_data(self, data)
 	self.nv_last_social_time = data.nv_last_social_time or 0
 	self.nv_last_food_share_time = data.nv_last_food_share_time or 0
 	self.nv_last_player_greeting_time = data.nv_last_player_greeting_time or 0
-	self.nv_final_destination = data.nv_final_destination
-	self.nv_waiting_for_door = data.nv_waiting_for_door or false
-	self.nv_door_wait_start = data.nv_door_wait_start or 0
-	self.nv_waiting_door_pos = data.nv_waiting_door_pos
+	self.nv_door_opened = data.nv_door_opened
+	self.nv_door_from = data.nv_door_from
+	self.nv_door_opened_at = data.nv_door_opened_at or 0
 	-- State machine data
 	self.nv_behavior_state = data.nv_behavior_state or lualore.behaviors.states.SOCIALIZING
 	self.nv_state_timer = data.nv_state_timer or 0

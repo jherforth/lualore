@@ -201,11 +201,10 @@ function lualore.witch_magic.do_custom(self, dtime)
 			lualore.mood.update_mood(self, dtime)
 		end
 
-		-- Update enhanced behaviors (including door waiting for all entity types)
+		-- Update enhanced behaviors (monsters only get the door handling)
 		if lualore.behaviors then
-			-- Only call handle_door_waiting for monsters, skip other behaviors
 			if self.type == "monster" then
-				lualore.behaviors.handle_door_waiting(self)
+				lualore.behaviors.handle_doors(self, dtime, self._target)
 			else
 				lualore.behaviors.update(self, dtime)
 			end

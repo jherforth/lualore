@@ -103,7 +103,7 @@ Shrines spawn on their own grid (`lualore_door_spacing`, `lualore_door_chance`),
 
 ### 🚪 Smart Doors
 
-Village doors automatically open when NPCs approach and close after they pass through.
+Villagers open the door they are about to walk through and close it behind them once they are on the other side — so at dusk they head home, let themselves in and settle by their bed, and in the morning they come back out and the house is shut up again. Doors from any mod are handled, whichever way the hinge faces. On top of that, the village sweeps its doors open at 6AM and closed at 10PM for a bit of daily rhythm.
 
 ## Installation
 

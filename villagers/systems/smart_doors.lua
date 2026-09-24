@@ -25,12 +25,44 @@ local door_transform = {
 -- Suffix-to-state map so we can identify a door's current state from node name alone
 local suffix_to_state = { _a = 0, _c = 1, _b = 2, _d = 3 }
 
+-- Any mod's upright door, not just minetest_game's: the village and sky
+-- schematics also carry everness:door_crystal_wood_*, which the old
+-- "^doors:door_" pattern never matched, so those houses were left out of
+-- the sweep entirely. Trapdoors and gates do not match (no _a.._d suffix
+-- on a "mod:door_" name) and are left alone.
 local function get_door_base_and_state(node_name)
-	local base, suffix = node_name:match("^(doors:door_.-)(_[abcd])$")
+	if not node_name then
+		return nil, nil
+	end
+	local base, suffix = node_name:match("^([%w_]+:door_.-)(_[abcd])$")
 	if base and suffix and suffix_to_state[suffix] then
 		return base, suffix_to_state[suffix]
 	end
 	return nil, nil
+end
+
+-- Public: is this node an upright door, and is it open?
+-- Closed doors are the _a and _b variants (states 0 and 2); _c and _d are
+-- the open ones. Hinge side is whatever the schematic stored, so BOTH
+-- closed variants have to be recognised.
+function lualore.smart_doors.is_door(node_name)
+	if node_name == "doors:hidden" then
+		return false -- the invisible upper half, present open or closed
+	end
+	return (get_door_base_and_state(node_name)) ~= nil
+end
+
+function lualore.smart_doors.is_open(node_name)
+	local _, state = get_door_base_and_state(node_name)
+	if not state then
+		return nil
+	end
+	return state % 2 == 1
+end
+
+function lualore.smart_doors.is_closed(node_name)
+	local open = lualore.smart_doors.is_open(node_name)
+	return open == false
 end
 
 local function is_daytime()
@@ -44,22 +76,22 @@ end
 
 local function toggle_door(pos, node, want_open)
 	local base, state = get_door_base_and_state(node.name)
-	if not base then return end
+	if not base then return false end
 
 	local currently_open = (state % 2 == 1)
-	if currently_open == want_open then return end
+	if currently_open == want_open then return false end
 
 	-- Determine new state
 	local new_state = want_open and (state + 1) or (state - 1)
 
 	local dir = node.param2
 	local t = door_transform[new_state]
-	if not t or not t[dir + 1] then return end
+	if not t or not t[dir + 1] then return false end
 
 	local entry = t[dir + 1]
 	local new_name = base .. entry.v
 
-	if not minetest.registered_nodes[new_name] then return end
+	if not minetest.registered_nodes[new_name] then return false end
 
 	local sound_def = minetest.registered_nodes[new_name]
 	if want_open and sound_def.sound_open then
@@ -69,7 +101,41 @@ local function toggle_door(pos, node, want_open)
 	end
 
 	minetest.swap_node(pos, {name = new_name, param1 = node.param1, param2 = entry.p2})
+	-- keep the doors mod's own bookkeeping in step, so a player clicking
+	-- the door afterwards toggles it from the right state
 	minetest.get_meta(pos):set_int("state", new_state)
+	return true
+end
+
+--------------------------------------------------------------------
+-- PUBLIC API (used by the villagers, see villager_behaviors.lua)
+--------------------------------------------------------------------
+
+-- Open or close one door. Returns true when the door actually changed.
+function lualore.smart_doors.set(pos, want_open)
+	if not pos then
+		return false
+	end
+	return toggle_door(pos, minetest.get_node(pos), want_open) == true
+end
+
+-- Nearest closed upright door around a position, or nil. Uses the engine
+-- side node search rather than a Lua triple loop: villagers ask for this
+-- several times a second each.
+function lualore.smart_doors.find_closed_near(pos, radius)
+	local minp = {x = pos.x - radius, y = pos.y - 1, z = pos.z - radius}
+	local maxp = {x = pos.x + radius, y = pos.y + 2, z = pos.z + radius}
+	local found = minetest.find_nodes_in_area(minp, maxp, {"group:door"})
+	local best, best_dist
+	for _, dpos in ipairs(found) do
+		if lualore.smart_doors.is_closed(minetest.get_node(dpos).name) then
+			local dist = vector.distance(pos, dpos)
+			if not best_dist or dist < best_dist then
+				best, best_dist = dpos, dist
+			end
+		end
+	end
+	return best, best_dist
 end
 
 --------------------------------------------------------------------

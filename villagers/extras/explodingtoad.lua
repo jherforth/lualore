@@ -93,9 +93,9 @@ sounds = {
 		if mobs:capture_mob(self, clicker, 0, 25, 0, false, nil) then return end
 	end,
 	do_custom = function(self, dtime)
-		-- Handle door waiting for toads
+		-- Toads nose doors open too
 		if lualore.behaviors then
-			lualore.behaviors.handle_door_waiting(self)
+			lualore.behaviors.handle_doors(self, dtime, self._target)
 		end
 	end,
 })
@@ -236,9 +236,9 @@ on_rightclick = function(self, clicker)
 		end
 	end,
 	do_custom = function(self, dtime)
-		-- Handle door waiting for tamed toads
+		-- Tamed toads nose doors open too
 		if lualore.behaviors then
-			lualore.behaviors.handle_door_waiting(self)
+			lualore.behaviors.handle_doors(self, dtime, self._target)
 		end
 	end,
 })
