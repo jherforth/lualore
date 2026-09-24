@@ -536,27 +536,35 @@ function lualore.jobs.stock_count(self)
 	return total
 end
 
--- Hand the whole stock over, into the inventory where it fits and at the
--- player's feet where it does not.
-function lualore.jobs.give_stock(self, player)
+-- Hand the stock over, into the inventory where it fits and at the
+-- player's feet where it does not. `share` is the fraction the player
+-- has earned (see village_standing.lua); the rest stays in the basket
+-- rather than vanishing, so it is there next time.
+function lualore.jobs.give_stock(self, player, share)
 	local stock = self.nv_stock
 	if not stock then
 		return {}
 	end
+	share = math.max(0, math.min(1, share or 1))
 	local inv = player:get_inventory()
 	local pos = player:get_pos()
 	local given = {}
 	for name, count in pairs(stock) do
 		if count > 0 and minetest.registered_items[name] then
-			local stack = ItemStack(name .. " " .. count)
+			-- always at least one of anything held, or a Stranger with a
+			-- single item would be given nothing at all
+			local hand_over = math.max(1, math.floor(count * share))
+			hand_over = math.min(hand_over, count)
+			local stack = ItemStack(name .. " " .. hand_over)
 			local leftover = inv and inv:add_item("main", stack) or stack
 			if leftover and not leftover:is_empty() then
 				minetest.add_item(pos, leftover)
 			end
-			given[#given + 1] = {name = name, count = count}
+			given[#given + 1] = {name = name, count = hand_over}
+			local kept = count - hand_over
+			stock[name] = (kept > 0) and kept or nil
 		end
 	end
-	self.nv_stock = {}
 	return given
 end
 

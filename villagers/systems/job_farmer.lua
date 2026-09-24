@@ -214,7 +214,9 @@ farmer.on_interact = function(self, player)
 		return true
 	end
 
-	local given = lualore.jobs.give_stock(self, player)
+	local share = (lualore.standing and lualore.standing.share)
+		and lualore.standing.share(player, self.object:get_pos()) or 1
+	local given = lualore.jobs.give_stock(self, player, share)
 	lualore.jobs.mark_shared(self)
 
 	local parts = {}
@@ -233,6 +235,10 @@ farmer.on_interact = function(self, player)
 
 	minetest.chat_send_player(player_name, S("The farmer hands you @1.",
 		table.concat(parts, ", ")))
+	if share < 1 and lualore.jobs.stock_count(self) > 0 then
+		minetest.chat_send_player(player_name,
+			S("He keeps the rest back - you are not kin here yet."))
+	end
 
 	if lualore.mood and lualore.mood.on_interact then
 		lualore.mood.on_interact(self, player)

@@ -103,8 +103,8 @@ look busy; it is deliberately too slow to race a field to ripeness, and a plot k
 with no farmer anywhere near it. The plot is ordinary farmland: harvest it, extend it, or
 ignore him entirely.
 
-**Right-click him with an empty hand** and he hands over what he has gathered — once per
-in-game day. Ask again the same day and he tells you so; his stock keeps building in the
+**Right-click him with an empty hand** and he hands over a share of what he has gathered —
+how much depends on your standing with the village — once per in-game day. Ask again the same day and he tells you so; his stock keeps building in the
 meantime. Stock is capped at eight kinds of item and 99 of each, so nothing accumulates
 without bound while you are away.
 
@@ -113,11 +113,42 @@ anvil, so they walk the rows properly instead of reaching half the field from on
 
 Digging up the stake stops the job cleanly — he writes nothing and goes back to wandering.
 
+## Village standing
+
+How well a particular village knows you, per player, 0–100. It is **earn only** — nothing
+you do lowers it. A reputation you can only lose by accident is a tax rather than a
+mechanic, and a player defending themselves near a village should not find the place
+permanently colder to them. (If you ever want losses, call `lualore.standing.earn` with a
+negative amount; that is the whole change.)
+
+| Tier | Standing | Share of what villagers make |
+| --- | --- | --- |
+| Stranger | 0–19 | 40% |
+| Guest | 20–49 | 60% |
+| Friend | 50–79 | 80% |
+| Kin | 80–100 | 100% |
+
+Earned by feeding a villager (+1), completing a trade (+2), and using what a villager makes
+(+1) — capped at **12 a day per village**, so standing is built over time rather than farmed
+in an afternoon. Crossing a tier is announced once.
+
+Standing is keyed by the same string `village_placement.lua` records villages under, so
+`/find_village` and this system always agree about which village you are in. Villages with
+no record — hand-built hamlets, or anything from before the record system — fall back to a
+coarse grid cell, so standing still means something there instead of silently going nowhere.
+
+What is withheld is **kept in the villager's basket**, not destroyed: come back as a Friend
+and it is still there.
+
+`/standing` reports where you stand, what share that earns you, what is left to the next
+tier, and how much of today's allowance you have used.
+
 ## Commands
 
 | Command | Privs | What it does |
 | --- | --- | --- |
 | `/jobs [radius]` | server | Lists nearby villagers with their class, behaviour state, distance and claimed workstation (default radius 40). |
+| `/standing` | — | How well the village you are standing in knows you. |
 | `/furnish_village [radius]` | server | Adds the anvil, forge, altar and farm plots to the village you are standing in (default radius 34). Needed for villages that already exist — new ones are furnished as they generate. |
 
 ## Settings
@@ -126,6 +157,7 @@ Digging up the stake stops the job cleanly — he writes nothing and goes back t
 | --- | --- | --- |
 | `lualore_villager_jobs` | `true` | Off restores the original wander/socialise day exactly: the schedule defers to the old two-state cycle and the job tick becomes a no-op. |
 | `lualore_village_workstations` | `true` | Off stops new villages being furnished. `/furnish_village` still works. |
+| `lualore_village_standing` | `true` | Off disables standing entirely; villagers then share everything with anyone. |
 
 ## Notes
 

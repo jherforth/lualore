@@ -82,6 +82,7 @@ dofile(modpath .. "/wizards/wizard_magic.lua")
 dofile(modpath .. "/wizards/wizard_wands.lua")
 dofile(modpath .. "/villagers/systems/villagers.lua")
 dofile(modpath .. "/villagers/systems/house_spawning.lua")
+dofile(modpath .. "/villagers/systems/village_standing.lua")
 dofile(modpath .. "/villagers/systems/village_commands.lua")
 dofile(modpath .. "/wizards/cave_wizards.lua")
 

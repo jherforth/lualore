@@ -188,3 +188,8 @@ lualore_villager_jobs (Villager jobs) bool true
 # village. Use /furnish_village to add them to a village that already
 # exists.
 lualore_village_workstations (Village workstations) bool true
+
+# Per-player standing with each village. Feeding, trading and using what
+# villagers make earns it, and better standing means a larger share of
+# what they produce. Earn-only: nothing you do can lower it.
+lualore_village_standing (Village standing) bool true
