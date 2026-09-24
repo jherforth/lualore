@@ -524,6 +524,69 @@ function lualore.jobs.update(self, dtime, job_def)
 end
 
 -- ------------------------------------------------------------------
+-- Player inventory
+-- ------------------------------------------------------------------
+-- Counting, taking and giving. Small, but it had already been written
+-- twice (the smith's repairs and the quest system) with a third copy
+-- about to appear for trading, so it lives in one place.
+lualore.inv = {}
+
+function lualore.inv.count(player, item_name)
+	local inv = player and player:get_inventory()
+	if not inv then
+		return 0
+	end
+	local total = 0
+	for _, stack in ipairs(inv:get_list("main") or {}) do
+		if stack:get_name() == item_name then
+			total = total + stack:get_count()
+		end
+	end
+	return total
+end
+
+-- Takes only if the whole amount is there, so a half-paid trade is not
+-- possible.
+function lualore.inv.take(player, item_name, count)
+	if lualore.inv.count(player, item_name) < count then
+		return false
+	end
+	local inv = player:get_inventory()
+	local remaining = count
+	for i, stack in ipairs(inv:get_list("main") or {}) do
+		if remaining <= 0 then
+			break
+		end
+		if stack:get_name() == item_name then
+			local take = math.min(stack:get_count(), remaining)
+			stack:set_count(stack:get_count() - take)
+			inv:set_stack("main", i, stack)
+			remaining = remaining - take
+		end
+	end
+	return true
+end
+
+-- Into the inventory where it fits, at the player's feet where it does
+-- not, so a full pack never silently eats a reward.
+function lualore.inv.give(player, item_name, count)
+	local stack = ItemStack(item_name .. " " .. count)
+	local inv = player:get_inventory()
+	local leftover = inv and inv:add_item("main", stack) or stack
+	if leftover and not leftover:is_empty() then
+		minetest.add_item(player:get_pos(), leftover)
+	end
+end
+
+function lualore.inv.display_name(item_name)
+	local def = minetest.registered_items[item_name]
+	if def and def.description and def.description ~= "" then
+		return def.description:match("^([^\n]+)") or def.description
+	end
+	return (item_name:match(":(.+)$") or item_name):gsub("_", " ")
+end
+
+-- ------------------------------------------------------------------
 -- Stock: what a villager has made and not yet given away
 -- ------------------------------------------------------------------
 -- Never put job output in self.drops. That table is the death loot AND

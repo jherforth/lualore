@@ -151,6 +151,47 @@ anvil, so they walk the rows properly instead of reaching half the field from on
 
 Digging up the stake stops the job cleanly — he writes nothing and goes back to wandering.
 
+## Trading
+
+Sneak and right-click a villager to open their counter. Each one keeps a short list of
+standing offers — so much of this for so much of that — rolled from their bed position, so a
+villager always deals in the same things and two of the same trade in one village deal in
+different ones.
+
+How many offers they show you depends on how they feel and how well you are known: two to
+begin with, one more if they are happy or content, one more again at Friend standing, four at
+most. Offers you cannot afford are shown greyed with what you are holding, so you can see
+what to go and fetch. Each villager will do **four trades a day**, which is what stops a
+village being an infinite goods machine and gives you a reason to know more than one of them.
+
+Villagers buy raw and sell worked — iron for steel, wheat for bread, pearls for diamonds — so
+trading in circles between them does not pay. Any offer naming an item the game does not have
+is dropped at load.
+
+The old path is still there: punching a villager while holding something they want trades it
+directly, without opening anything.
+
+## Getting about
+
+Villagers used to navigate by pointing at their goal and walking, because mobs_redo only
+pathfinds while a mob is attacking. A wall between a villager and its bed meant a villager
+stuck against a wall until the stuck timer teleported it home.
+
+They now use the engine's own A* (`minetest.find_path`) — there is no custom pathfinder here,
+just something driving that one and keeping the result on the villager. Searches are rationed
+to about one every two seconds per villager and only for goals within 48 nodes; in practice a
+villager crossing a village runs **two searches** for the whole trip. If no route can be
+found it walks straight at the goal, which is exactly what it did before, so a villager that
+cannot path is never worse off.
+
+**Doorways are handled by hand, and have to be.** The engine's pathfinder asks whether a node
+is `walkable`, and a door node is — open or shut, because what actually swings aside is the
+door's collision box, not its walkability. So A* will never route through a doorway. When a
+route fails, the villager heads for the square in front of the nearest door instead; the door
+handler opens it on approach; and then it steps through along the axis it crossed. Once
+inside, ordinary pathing resumes. It is the one place the villager solves the maze by opening
+it rather than going round.
+
 ## Village standing
 
 How well a particular village knows you, per player, 0–100. It is **earn only** — nothing

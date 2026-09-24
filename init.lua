@@ -75,7 +75,9 @@ dofile(modpath .. "/villagers/systems/village_placement.lua")
 dofile(modpath .. "/villagers/systems/npcmood.lua")
 dofile(modpath .. "/villagers/systems/villager_behaviors.lua")
 dofile(modpath .. "/villagers/systems/villager_pins.lua")
+dofile(modpath .. "/villagers/systems/villager_path.lua")
 dofile(modpath .. "/villagers/systems/villager_jobs.lua")
+dofile(modpath .. "/villagers/systems/villager_trade.lua")
 --    One file per trade, each filling in its own entry in
 --    lualore.jobs.classes. A class with no file here simply has no
 --    mechanic and still walks to its workstation.

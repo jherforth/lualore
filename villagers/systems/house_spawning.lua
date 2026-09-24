@@ -4,6 +4,44 @@
 
 local S = minetest.get_translator("lualore")
 
+lualore = lualore or {}
+lualore.house_spawning = lualore.house_spawning or {}
+
+-- Somewhere near the bed a villager can actually stand.
+--
+-- The old search only looked at a ring five to seven nodes out, which
+-- is often solid wall or another house in a dense village, and when it
+-- found nothing it dropped the villager six nodes east regardless -
+-- inside whatever happened to be there. It now widens the ring until it
+-- finds room and, failing everything, stands them on their own bed,
+-- which is at least indoors and always clear.
+local function find_spawn_spot(bed_pos)
+    for _, ring in ipairs({{5, 7}, {3, 9}, {2, 12}}) do
+        local lo, hi = ring[1], ring[2]
+        for dy = -1, 3 do
+            for dx = -hi, hi do
+                for dz = -hi, hi do
+                    local dist = math.sqrt(dx * dx + dz * dz)
+                    if dist >= lo and dist <= hi then
+                        local check = {x = bed_pos.x + dx, y = bed_pos.y + dy,
+                            z = bed_pos.z + dz}
+                        local here = minetest.get_node(check).name
+                        local above = minetest.get_node(
+                            {x = check.x, y = check.y + 1, z = check.z}).name
+                        local below = minetest.get_node(
+                            {x = check.x, y = check.y - 1, z = check.z}).name
+                        if here == "air" and above == "air"
+                                and minetest.get_item_group(below, "solid") == 1 then
+                            return check
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return {x = bed_pos.x, y = bed_pos.y + 1, z = bed_pos.z}
+end
+
 -- Track which beds already have villagers (prevents duplicates)
 local beds_with_villagers = {}
 
@@ -104,16 +142,17 @@ end)
 
 load_beds()
 
--- Main villager spawning on chunk generation
-minetest.register_on_generated(function(minp, maxp, blockseed)
-    minetest.after(8, function()  -- let village placement finish first (it can retry for a few seconds)
-        local ymin = math.max(minp.y, -10)
-        local ymax = math.min(maxp.y, 80)
-        local search_min = {x = minp.x, y = ymin, z = minp.z}
-        local search_max = {x = maxp.x, y = ymax, z = maxp.z}
-
-        -- Find all beds in the chunk
+-- ------------------------------------------------------------------
+-- Populating an area
+-- ------------------------------------------------------------------
+-- Every bed in the box gets a villager, minus the ones left empty on
+-- purpose. Published, because chunk generation is the wrong thing to
+-- hang this on by itself (see the note on the generated hook below) and
+-- the village placer calls it directly once a village is actually up.
+function lualore.house_spawning.populate(search_min, search_max)
+        -- Find all beds in the area
         local beds = minetest.find_nodes_in_area(search_min, search_max, "group:bed")
+        local spawned = 0
         local processed_beds = {}  -- Temporary table for this chunk
         local bed_pairs = {}  -- Track bed pairs to avoid duplicates
 
@@ -140,6 +179,8 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
             local bed_node = minetest.get_node(bed_pos)
             local bed_pair_key = nil
 
+            local partner_key = nil
+
             -- Try to find the other half of the bed (usually adjacent)
             for _, offset in ipairs({{x=1,y=0,z=0}, {x=-1,y=0,z=0}, {x=0,y=0,z=1}, {x=0,y=0,z=-1}}) do
                 local check_pos = vector.add(bed_pos, offset)
@@ -151,7 +192,27 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                         pos1, pos2 = pos2, pos1
                     end
                     bed_pair_key = minetest.pos_to_string(pos1) .. "|" .. minetest.pos_to_string(pos2)
+                    partner_key = minetest.pos_to_string(check_pos)
                     break
+                end
+            end
+
+            -- Settling a bed settles BOTH of its halves, and it has to be
+            -- remembered across calls, not just within one. populate() now
+            -- runs more than once over the same ground - the village placer
+            -- calls it when a village goes up and the chunk hook calls it
+            -- again later - and only one half used to be claimed, so the
+            -- second pass found the other half unclaimed and spawned a
+            -- second villager for the same bed.
+            local function settle(state)
+                beds_with_villagers[bed_key] = state
+                processed_beds[bed_key] = true
+                if partner_key then
+                    beds_with_villagers[partner_key] = state
+                    processed_beds[partner_key] = true
+                end
+                if bed_pair_key then
+                    bed_pairs[bed_pair_key] = true
                 end
             end
 
@@ -163,49 +224,18 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                 bed_pairs[bed_pair_key] = true
             end
 
-            -- 28% chance the bed is unoccupied (adds realism)
+            -- 28% chance the bed is unoccupied (adds realism). Recorded
+            -- as "empty" rather than just skipped: the roll has to stand,
+            -- or the next pass over this ground would roll it again and
+            -- the village would slowly fill up to every bed occupied.
             if math.random() < 0.28 then
-                processed_beds[bed_key] = true
+                settle("empty")
                 goto continue
             end
 
             -- For crystal forest biomes, spawn sky folk
             if is_crystal_forest then
-                -- Find spawn position 6 blocks away from the bed (outside the house)
-                local spawn_pos = nil
-
-                -- Try to find a good spawn position in a 6-block radius
-                for dx = -8, 8 do
-                    for dy = -1, 3 do
-                        for dz = -8, 8 do
-                            local dist = math.sqrt(dx*dx + dz*dz)
-                            -- Only check positions that are roughly 6 blocks away (between 5 and 7)
-                            if dist >= 5 and dist <= 7 then
-                                local check = {
-                                    x = bed_pos.x + dx,
-                                    y = bed_pos.y + dy,
-                                    z = bed_pos.z + dz
-                                }
-                                local node = minetest.get_node(check)
-                                local above = minetest.get_node({x=check.x, y=check.y+1, z=check.z})
-                                local below = minetest.get_node({x=check.x, y=check.y-1, z=check.z})
-
-                                -- Need air at position and above, and solid ground below
-                                if node.name == "air" and above.name == "air" and
-                                   minetest.get_item_group(below.name, "solid") == 1 then
-                                    spawn_pos = check
-                                    goto sky_folk_spawn_found
-                                end
-                            end
-                        end
-                    end
-                end
-                ::sky_folk_spawn_found::
-
-                -- Fallback if no suitable outdoor position found
-                if not spawn_pos then
-                    spawn_pos = {x = bed_pos.x + 6, y = bed_pos.y, z = bed_pos.z}
-                end
+                local spawn_pos = find_spawn_spot(bed_pos)
 
                 -- Spawn the sky folk
                 local obj = minetest.add_entity(spawn_pos, "lualore:sky_folk")
@@ -217,8 +247,8 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                         -- Set spawn position for Sky Folk
                         luaent.nv_spawn_pos = vector.new(spawn_pos.x, spawn_pos.y, spawn_pos.z)
                     end
-                    beds_with_villagers[bed_key] = true
-                    processed_beds[bed_key] = true
+                    settle(true)
+                    spawned = spawned + 1
                     minetest.log("action", "[lualore] Sky Folk spawned near bed at " ..
                         minetest.pos_to_string(spawn_pos) .. " linked to bed at " .. bed_key)
                 end
@@ -243,41 +273,7 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                 biome = "grassland"
             end
 
-            -- Find spawn position 6 blocks away from the bed (outside the house)
-            local spawn_pos = nil
-
-            -- Try to find a good spawn position in a 6-block radius
-            for dx = -8, 8 do
-                for dy = -1, 3 do
-                    for dz = -8, 8 do
-                        local dist = math.sqrt(dx*dx + dz*dz)
-                        -- Only check positions that are roughly 6 blocks away (between 5 and 7)
-                        if dist >= 5 and dist <= 7 then
-                            local check = {
-                                x = bed_pos.x + dx,
-                                y = bed_pos.y + dy,
-                                z = bed_pos.z + dz
-                            }
-                            local node = minetest.get_node(check)
-                            local above = minetest.get_node({x=check.x, y=check.y+1, z=check.z})
-                            local below = minetest.get_node({x=check.x, y=check.y-1, z=check.z})
-
-                            -- Need air at position and above, and solid ground below
-                            if node.name == "air" and above.name == "air" and
-                               minetest.get_item_group(below.name, "solid") == 1 then
-                                spawn_pos = check
-                                goto spawn_found
-                            end
-                        end
-                    end
-                end
-            end
-            ::spawn_found::
-
-            -- Fallback if no suitable outdoor position found
-            if not spawn_pos then
-                spawn_pos = {x = bed_pos.x + 6, y = bed_pos.y, z = bed_pos.z}
-            end
+            local spawn_pos = find_spawn_spot(bed_pos)
 
             -- Spawn the villager
             local class = draw_class(bed_pos)
@@ -292,14 +288,44 @@ minetest.register_on_generated(function(minp, maxp, blockseed)
                     -- Set spawn position (separate from house/bed position)
                     luaent.nv_spawn_pos = vector.new(spawn_pos.x, spawn_pos.y, spawn_pos.z)
                 end
-                beds_with_villagers[bed_key] = true
-                processed_beds[bed_key] = true
+                settle(true)
+                spawned = spawned + 1
                 minetest.log("action", "[lualore] Villager spawned near bed: " .. mob_name ..
                     " at " .. minetest.pos_to_string(spawn_pos) .. " linked to bed at " .. bed_key)
             end
 
             ::continue::
         end
+
+        return spawned
+end
+
+-- ------------------------------------------------------------------
+-- When to populate
+-- ------------------------------------------------------------------
+-- Two triggers, because chunk generation alone never worked here:
+--
+--   * A village is bigger than the chunk that builds it. The placer
+--     blits schematics into neighbouring chunks, and those chunks have
+--     usually generated already - their bed scan ran, found bare ground
+--     and will never run again. Worse, the placer can retry for nearly
+--     half a minute before it builds, so even the triggering chunk's
+--     scan could run before a single bed existed. That is why a large
+--     village came out with two villagers in it.
+--   * The y band was clamped to 80, while villages place as high as
+--     lualore_village_y_max (200 by default). A village above that line
+--     got nobody at all.
+--
+-- So the village placer now calls populate() over the village's own
+-- bounds as soon as it has finished building, and the chunk hook stays
+-- on for beds that are not part of a village - a house a player built,
+-- or anything from another mod - with a y band that matches where
+-- villages can actually be.
+minetest.register_on_generated(function(minp, maxp, blockseed)
+    minetest.after(8, function()
+        lualore.house_spawning.populate(
+            {x = minp.x, y = math.max(minp.y, -30), z = minp.z},
+            {x = maxp.x, y = math.min(maxp.y, 250), z = maxp.z})
     end)
 end)
 

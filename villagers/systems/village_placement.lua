@@ -824,6 +824,32 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 		end
 	end
 
+	-- 6. Populate it. This does not wait for the chunk hook in
+	--    house_spawning.lua: a village is wider than the chunk that
+	--    builds it, its outer houses land in chunks that generated long
+	--    ago, and the placer may have retried for half a minute before
+	--    getting here - by which time those scans are over. The village
+	--    knows its own bounds and when it finished, so it asks directly.
+	--    The short delay lets the schematics settle into the map first.
+	local reach = eff_radius + 20
+	minetest.after(2, function()
+		local hs = lualore.house_spawning
+		if not (hs and hs.populate) then
+			return
+		end
+		local ok, spawned = pcall(hs.populate,
+			{x = center_x - reach, y = floor_y - 12, z = center_z - reach},
+			{x = center_x + reach, y = floor_y + 40, z = center_z + reach})
+		if ok then
+			minetest.log("action", string.format(
+				"[lualore] Village at %d,%d,%d populated: %d villagers",
+				center_x, floor_y, center_z, spawned or 0))
+		else
+			minetest.log("warning",
+				"[lualore] Village populate failed: " .. tostring(spawned))
+		end
+	end)
+
 	return true, house_count, central_count, floor_y, planted
 end
 

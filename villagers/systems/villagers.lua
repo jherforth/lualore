@@ -465,6 +465,11 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 						if lualore.jobs and data.jobs then
 							lualore.jobs.on_activate_extra(self, data.jobs)
 						end
+
+						-- Restore trade data
+						if lualore.trade and data.trade then
+							lualore.trade.on_activate_extra(self, data.trade)
+						end
 					end
 				end
 
@@ -521,6 +526,11 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 				-- Add job data if available
 				if lualore.jobs then
 					tmp.jobs = lualore.jobs.get_save_data(self)
+				end
+
+				-- Add trade data if available
+				if lualore.trade then
+					tmp.trade = lualore.trade.get_save_data(self)
 				end
 
 				return minetest.serialize(tmp)
@@ -644,8 +654,17 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 			local item_name = item:get_name()
 			local is_sneaking = clicker:get_player_control().sneak
 
-			-- SNEAK + RIGHT-CLICK: Trading
+			-- SNEAK + RIGHT-CLICK: open the trade window. The old path
+			-- took whatever you happened to be holding and rolled the
+			-- villager's death-drop table onto the ground, which showed
+			-- the player nothing and gave them a lottery. try_trade is
+			-- kept below for the punch path, which is still how you
+			-- hand something over without opening anything.
 			if is_sneaking then
+				if lualore.trade and lualore.trade.show then
+					lualore.trade.show(clicker, self)
+					return
+				end
 				if try_trade(self, clicker) then
 					return
 				end

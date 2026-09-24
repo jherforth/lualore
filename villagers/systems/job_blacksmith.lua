@@ -144,37 +144,6 @@ local function repair_cost(wear, player, pos)
 	return math.max(1, math.min(MAX_COST, cost))
 end
 
-local function count_in_inventory(player, item_name)
-	local inv = player:get_inventory()
-	if not inv then
-		return 0
-	end
-	local total = 0
-	for _, stack in ipairs(inv:get_list("main") or {}) do
-		if stack:get_name() == item_name then
-			total = total + stack:get_count()
-		end
-	end
-	return total
-end
-
-local function take_from_inventory(player, item_name, count)
-	local inv = player:get_inventory()
-	local remaining = count
-	for i, stack in ipairs(inv:get_list("main") or {}) do
-		if remaining <= 0 then
-			break
-		end
-		if stack:get_name() == item_name then
-			local take = math.min(stack:get_count(), remaining)
-			stack:set_count(stack:get_count() - take)
-			inv:set_stack("main", i, stack)
-			remaining = remaining - take
-		end
-	end
-	return remaining <= 0
-end
-
 local PAYMENT = "default:steel_ingot"
 
 if minetest.registered_nodes["lualore:anvil"] then
@@ -214,7 +183,7 @@ if minetest.registered_nodes["lualore:anvil"] then
 			end
 
 			local cost = repair_cost(wear, clicker, pos)
-			local held = count_in_inventory(clicker, PAYMENT)
+			local held = lualore.inv.count(clicker, PAYMENT)
 			if held < cost and not (mobs and mobs.is_creative
 					and mobs.is_creative(player_name)) then
 				minetest.chat_send_player(player_name, S(
@@ -224,7 +193,7 @@ if minetest.registered_nodes["lualore:anvil"] then
 			end
 
 			if not (mobs and mobs.is_creative and mobs.is_creative(player_name)) then
-				take_from_inventory(clicker, PAYMENT, cost)
+				lualore.inv.take(clicker, PAYMENT, cost)
 			end
 			itemstack:set_wear(0)
 

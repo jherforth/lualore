@@ -150,6 +150,29 @@ local DOOR_SCAN_INTERVAL = 0.4   -- seconds between door scans
 local DOOR_CLEAR         = 1.8   -- far enough past a door to shut it
 local DOOR_HOLD          = 10    -- give up holding a door open after this
 
+-- Point the villager at where it should walk NEXT, which is not always
+-- where it wants to end up: villager_path.lua routes round corners and
+-- through doorways. With that module absent this is the old behaviour,
+-- a straight line at the goal.
+--
+-- Returns the point being steered at, so callers can use it as the
+-- nav target for door opening.
+function lualore.behaviors.steer(self, goal, dtime)
+	if not self.object or not goal then
+		return goal
+	end
+	local pos = self.object:get_pos()
+	if not pos then
+		return goal
+	end
+	local step = goal
+	if lualore.path and lualore.path.next_step then
+		step = lualore.path.next_step(self, goal, dtime or 0) or goal
+	end
+	self.object:set_yaw(minetest.dir_to_yaw(vector.direction(pos, step)))
+	return step
+end
+
 -- Is anybody else standing in the doorway? Never shut a door on them.
 function lualore.behaviors.doorway_busy(door_pos, me)
 	local myself = me and me.object
@@ -636,8 +659,7 @@ function lualore.behaviors.handle_walk_to_food(self)
 		self._target = self.nv_food_target
 		self.state = "walk"
 		self:set_animation("walk")
-		local dir = vector.direction(pos, self.nv_food_target)
-		self.object:set_yaw(minetest.dir_to_yaw(dir))
+		lualore.behaviors.steer(self, self.nv_food_target, self.nv_last_dtime)
 	else
 		self._target = nil
 		self.state = "stand"
@@ -748,6 +770,10 @@ end
 
 -- Transition to new state
 function lualore.behaviors.transition_state(self, new_state)
+	-- New job, new route.
+	if lualore.path then
+		lualore.path.reset(self)
+	end
 	if new_state ~= lualore.behaviors.states.WORKING then
 		self.nv_at_station = false
 		self.nv_work_spot = nil
@@ -797,9 +823,7 @@ function lualore.behaviors.handle_socializing_state(self)
 			self._target = npc_pos
 			self.state = "walk"
 			self:set_animation("walk")
-			local dir = vector.direction(pos, npc_pos)
-			local yaw = minetest.dir_to_yaw(dir)
-			self.object:set_yaw(yaw)
+			lualore.behaviors.steer(self, npc_pos, self.nv_last_dtime)
 			return true
 		end
 	end
@@ -848,7 +872,7 @@ function lualore.behaviors.handle_working_state(self)
 		self._target = work_pos
 		self.state = "walk"
 		self:set_animation("walk")
-		self.object:set_yaw(minetest.dir_to_yaw(vector.direction(pos, work_pos)))
+		lualore.behaviors.steer(self, work_pos, self.nv_last_dtime)
 		-- false so update() still runs the stuck check on the way there,
 		-- the same reason the walk-home branch returns false
 		return false
@@ -860,6 +884,11 @@ function lualore.behaviors.handle_working_state(self)
 	self._target = nil
 	self.state = "stand"
 	self:set_animation("stand")
+	-- Arrived: just face the work. No route needed, and the old one is
+	-- finished with.
+	if lualore.path then
+		lualore.path.reset(self)
+	end
 	self.object:set_yaw(minetest.dir_to_yaw(vector.direction(pos, work_pos)))
 	return true
 end
@@ -939,7 +968,7 @@ function lualore.behaviors.handle_night_time_movement_with_avoidance(self)
 	self._target = house_pos
 	self.state = "walk"
 	self:set_animation("walk")
-	self.object:set_yaw(minetest.dir_to_yaw(vector.direction(pos, house_pos)))
+	lualore.behaviors.steer(self, house_pos, self.nv_last_dtime)
 
 	-- false so the caller still runs the stuck check on the way home
 	return false
@@ -996,6 +1025,9 @@ end
 --------------------------------------------------------------------
 function lualore.behaviors.update(self, dtime)
 	lualore.behaviors.init_house(self)
+	-- Stashed so the steering helper can age its route without every
+	-- call site having to pass dtime down.
+	self.nv_last_dtime = dtime
 
 	-- Check for obstacles in path
 	if lualore.behaviors.check_path_obstacles(self) then
