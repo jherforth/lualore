@@ -134,3 +134,41 @@ lualore_door_y_max (Obsidian door search band top) int 200 -31000 31000
 
 # Lower Y limit of the shrine search band (lower number = deeper).
 lualore_door_y_min (Obsidian door search band bottom) int -2 -31000 31000
+
+# -------------------------------------------------------------------
+# Sky sites (deterministic grid placement on the floating crystal
+# islands - see valkyrie/SKY_SITES.md)
+# -------------------------------------------------------------------
+
+# Enable deterministic placement of the sky buildings on the floating
+# crystal islands (replaces the old schematic decorations, which stacked
+# castles and houses on top of each other).
+lualore_sky_buildings (Sky buildings) bool true
+
+# Grid spacing (in nodes) between sky site candidates. One candidate exists
+# per spacing x spacing area, jittered in the middle half of the cell, so
+# two sky sites can never be closer together than half this value. Cells
+# whose candidate finds no island simply build nothing.
+lualore_sky_spacing (Sky site spacing) int 360 160 5000
+
+# Fraction of grid cells that actually attempt a sky site (0.0 - 1.0).
+lualore_sky_chance (Sky site chance) float 0.8 0.0 1.0
+
+# Chance that a sky site is built around a skycastle. The castle holds the
+# one valkyrie chest, so this is what makes it a rare find.
+lualore_sky_castle_chance (Skycastle chance) float 0.15 0.0 1.0
+
+# Houses per sky site (the castle, when one is rolled, is extra).
+lualore_sky_houses_min (Sky houses minimum) int 2 1 12
+lualore_sky_houses_max (Sky houses maximum) int 6 1 12
+
+# How far from the site centre houses may stand, in nodes. Grows with the
+# rolled house count and again when the site has a castle.
+lualore_sky_radius (Sky site radius) int 30 14 60
+
+# Scatter crystal grass and lay paths between the sky buildings.
+lualore_sky_dressing (Sky site dressing) bool true
+
+# Sky sites are searched for between these Y levels.
+lualore_sky_y_min (Sky search band bottom) int 500 -31000 31000
+lualore_sky_y_max (Sky search band top) int 31000 -31000 31000

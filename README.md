@@ -72,6 +72,8 @@ High above the clouds, floating sky villages hold an ancient secret. Valkyries o
 
 Defeat the Valkyries to free the Sky Folk. Once liberated, they'll mark the location of other captive Sky Folk with magical pins and send you on quests to free their companions. Free enough Sky Folk and earn special rewards.
 
+Sky buildings are placed on the floating crystal islands by the same deterministic grid the ground villages use: one site per cell, planned before anything is placed, so houses never overlap and never hang off the island. Most sites are small hamlets — the **skycastle**, which holds the single valkyrie chest, is rolled rarely on top of that. The chest always generates closed; opening it releases four Valkyries at once. Tuning and commands (`/spawn_skysite`, `/find_skysite`) are in `valkyrie/SKY_SITES.md`.
+
 ### 🏗️ Village Buildings
 
 Each biome has unique structures: houses, churches, markets, stables and more. A village plan is computed first (flat ground, no overlapping footprints) and only then placed, so buildings always form a clean hamlet instead of scattering or overwriting each other.
