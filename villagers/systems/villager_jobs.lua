@@ -357,12 +357,35 @@ function lualore.jobs.ensure_station(self)
 		release_claim(key)
 	end
 
+	-- Classes that work by walking rather than at a node - the ranger on
+	-- his round - take their own doorstep as the anchor. Nothing is
+	-- claimed; the job moves nv_work_spot about from there.
+	local def = lualore.jobs.classes[class]
+	if def and def.patrol and #stations_for(class) == 0 then
+		self.nv_work_pos = self.nv_house_pos
+		return self.nv_work_pos
+	end
+
 	local until_time = self.nv_no_station_until
 	if until_time and minetest.get_gametime() < until_time then
 		return nil
 	end
 
 	return search_station(self, class)
+end
+
+-- The nearest villager of a given class to a position. Node-side
+-- interactions use it: an anvil is only a forge while a smith is at it.
+function lualore.jobs.villager_near(pos, class, radius)
+	for _, obj in ipairs(minetest.get_objects_inside_radius(pos, radius or 6)) do
+		local ent = obj:get_luaentity()
+		if ent and ent.name and ent.name:find("lualore:", 1, true) == 1 then
+			if lualore.jobs.get_class(ent) == class then
+				return ent
+			end
+		end
+	end
+	return nil
 end
 
 function lualore.jobs.has_station(self)
@@ -579,6 +602,53 @@ function lualore.jobs.mark_shared(self)
 		and minetest.get_day_count() or 0
 end
 
+-- The interaction most working villagers share: ask, and they hand over
+-- a share of what they have made. `lines` carries the class's own
+-- flavour, so a fisherman does not talk like a smith.
+function lualore.jobs.share_interact(self, player, lines)
+	local player_name = player:get_player_name()
+
+	if lualore.jobs.stock_count(self) <= 0 then
+		minetest.chat_send_player(player_name, lines.empty)
+		return true
+	end
+	if not lualore.jobs.can_share(self) then
+		minetest.chat_send_player(player_name, lines.already)
+		return true
+	end
+
+	local share = (lualore.standing and lualore.standing.share)
+		and lualore.standing.share(player, self.object:get_pos()) or 1
+	local given = lualore.jobs.give_stock(self, player, share)
+	lualore.jobs.mark_shared(self)
+
+	local parts = {}
+	for _, entry in ipairs(given) do
+		local def = minetest.registered_items[entry.name]
+		local label = def and def.description
+			and def.description:match("^([^\n]+)") or entry.name
+		parts[#parts + 1] = entry.count .. " " .. label
+	end
+	if #parts == 0 then
+		minetest.chat_send_player(player_name, lines.empty)
+		return true
+	end
+
+	minetest.chat_send_player(player_name,
+		lines.gave:gsub("@1", table.concat(parts, ", ")))
+	if lines.withheld and share < 1 and lualore.jobs.stock_count(self) > 0 then
+		minetest.chat_send_player(player_name, lines.withheld)
+	end
+
+	if lualore.mood and lualore.mood.on_interact then
+		lualore.mood.on_interact(self, player)
+	end
+	if lualore.standing and lualore.standing.earn then
+		lualore.standing.earn(player, self, "job")
+	end
+	return true
+end
+
 -- ------------------------------------------------------------------
 -- Player interaction, dispatched to the class
 -- ------------------------------------------------------------------
@@ -594,6 +664,31 @@ function lualore.jobs.on_interact(self, player)
 		return def.on_interact(self, player) == true
 	end
 	return false
+end
+
+-- Being fed. Wraps the mood module's on_feed, which is the one place
+-- every feeding path already goes through. village_standing.lua wraps
+-- the same function for its own purposes; the wrappers compose, each
+-- calling the one it replaced.
+function lualore.jobs.on_fed(self, player)
+	if not ENABLED or not player then
+		return
+	end
+	local class = lualore.jobs.get_class(self)
+	local def = class and lualore.jobs.classes[class]
+	if def and def.on_fed then
+		def.on_fed(self, player)
+	end
+end
+
+if lualore.mood and lualore.mood.on_feed then
+	local plain_on_feed = lualore.mood.on_feed
+	lualore.mood.on_feed = function(self, clicker, food_value)
+		plain_on_feed(self, clicker, food_value)
+		if clicker and clicker.get_player_name then
+			lualore.jobs.on_fed(self, clicker)
+		end
+	end
 end
 
 -- ------------------------------------------------------------------

@@ -90,6 +90,44 @@ three farmers. The overall spread stays farmer 25%, bum 16%, everything else 8%.
   you can see whose workplace it is by looking at it.
 - Claims are released when the villager dies.
 
+## The trades
+
+Each class fills in its own entry in `lualore.jobs.classes`, in its own file
+(`villagers/systems/job_*.lua`). A class with no file simply has no mechanic and still walks
+to its workstation.
+
+| Trade | At work | What you get |
+| --- | --- | --- |
+| **Farmer** | Works the rows of his field — harvests, sows, tends | A share of the harvest; the plot is real farmland you can work yourself |
+| **Blacksmith** | Hammers ingots and tools out at the anvil | **Repairs worn tools** at his anvil for steel, priced by wear and your standing |
+| **Cleric** | Heals and cheers villagers around his altar | Lay a **mese crystal** on the altar and the village becomes where you respawn, plus a 4-minute blessing |
+| **Fisherman** | Works a trap that must have water near it | Catfish, string, clay and the occasional pearl |
+| **Jeweler** | Turns out small valuables at his shelf | Pieces drawn from **the village's own biome loot table** — desert villages deal in gold, jungle ones in emerald |
+| **Entertainer** | Performs at the biome prop, turning on the spot | Everyone nearby cheers up; watching earns standing, at most once every 90s |
+| **Vagrant** | No workstation — he loiters and begs | **Feed him and he tells you where something is** |
+| **Ranger** | Walks a six-point circuit of the village bounds | An armed villager out where trouble arrives |
+
+### The vagrant is the interesting one
+
+He has nothing to sell. What he has is knowing the country: feed him and he marks a ruin, a
+village, an obsidian shrine or a sky site you have not seen, as a waypoint, with a line about
+which way to go. Everything he knows already existed — the village placer, the ruins, the
+obsidian doors and the sky sites each keep records for their own `/find_` commands, and he
+reads those. He holds off once you are carrying three unvisited marks, and skips anything
+within 60 nodes as not worth mentioning.
+
+### Blacksmith repairs
+
+Cost is in steel ingots, from `BASE_COST + wear`, multiplied by your tier (Stranger ×1.5 down
+to Kin ×0.5) and **capped at 4**. The cap matters: the price is in steel whatever the tool is
+made of, so without it a stranger could be quoted more for mending a steel pick than building
+a new one. As it stands, mending a diamond or mese tool is a bargain and a steel one is
+roughly a wash — which is the nudge towards building standing.
+
+An anvil with no smith within 6 nodes is a cold lump of steel, and the altar with no cleric
+is just stone. Both are craftable, so you can set up your own — but you still need the
+villager.
+
 ## The farmer
 
 The first class with a real mechanic. He works the plot his field stake describes:
@@ -149,6 +187,7 @@ tier, and how much of today's allowance you have used.
 | --- | --- | --- |
 | `/jobs [radius]` | server | Lists nearby villagers with their class, behaviour state, distance and claimed workstation (default radius 40). |
 | `/standing` | — | How well the village you are standing in knows you. |
+| `/jobs [radius]` (see above) | server | Also shows which trade each villager has. |
 | `/furnish_village [radius]` | server | Adds the anvil, forge, altar and farm plots to the village you are standing in (default radius 34). Needed for villages that already exist — new ones are furnished as they generate. |
 
 ## Settings
