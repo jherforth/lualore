@@ -121,4 +121,31 @@ minetest.register_node("lualore:valkyrie_chest_opened", {
 	end,
 })
 
+-- ------------------------------------------------------------------
+-- Chests that generated already open
+-- ------------------------------------------------------------------
+-- skycastle.mts has a valkyrie chest baked into it, saved in the opened
+-- state, so every castle built before this generated its prize already
+-- looted. This shuts those without touching one a player has actually
+-- opened: opening sets `opened` in the node's metadata, and a chest
+-- placed by a schematic has no metadata at all. So an opened chest that
+-- does not know it was opened was never opened by anybody.
+minetest.register_lbm({
+	label = "Close valkyrie chests that generated open",
+	name = "lualore:close_unlooted_valkyrie_chests",
+	nodenames = {"lualore:valkyrie_chest_opened"},
+	run_at_every_load = false,
+	action = function(pos, node)
+		local meta = minetest.get_meta(pos)
+		if meta:get_int("opened") == 1 then
+			return -- somebody earned this one
+		end
+		minetest.set_node(pos, {
+			name = "lualore:valkyrie_chest",
+			param2 = node.param2,
+		})
+		minetest.get_meta(pos):set_int("opened", 0)
+	end,
+})
+
 minetest.log("action", "[lualore] Valkyrie chest system loaded")

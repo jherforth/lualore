@@ -363,8 +363,11 @@ function lualore.behaviors.bed_pose(bed_pos)
 		return nil -- somebody took the bed away
 	end
 
+	-- Just clear of the bed's own surface. A bed node is a low box, so
+	-- sitting the villager at the node's own height puts it on top of
+	-- the mattress rather than sunk into it or hovering over it.
 	local pose = {
-		pos = {x = bed_pos.x, y = bed_pos.y + 0.4, z = bed_pos.z},
+		pos = {x = bed_pos.x, y = bed_pos.y + 0.1, z = bed_pos.z},
 		yaw = 0,
 	}
 	-- A bed is two nodes. Lie along it, in the middle of the pair.
@@ -381,7 +384,7 @@ function lualore.behaviors.bed_pose(bed_pos)
 	return pose
 end
 
-function lualore.behaviors.lie_down(self)
+function lualore.behaviors.lie_down(self, dtime)
 	if not self.object or not self.nv_house_pos then
 		return false
 	end
@@ -390,19 +393,46 @@ function lualore.behaviors.lie_down(self)
 		return false
 	end
 
-	-- Re-asserted every tick while asleep: mobs_redo will still roll its
-	-- walk chance from the stand state and nudge the mob, and this is
-	-- what keeps a sleeping villager in its bed instead of drifting out
-	-- of it by morning.
-	self.object:set_pos(pose.pos)
 	self.object:set_velocity({x = 0, y = 0, z = 0})
 	self.object:set_yaw(pose.yaw)
 	self.state = "stand"
 
 	if not self.nv_in_bed then
-		self:set_animation("stand")   -- let mobs_redo cache "stand"...
-		self.object:set_animation(BED_LAY, 8, 0, true)  -- ...then lie down
+		self.object:set_pos(pose.pos)
 		self.nv_in_bed = true
+		self.nv_bed_anim = 0
+	else
+		-- Only correct a villager that has actually been shoved out of
+		-- bed. Setting the position every tick is what made them bounce:
+		-- gravity pulls the mob down a little between ticks and the snap
+		-- puts it straight back, over and over, several times a second.
+		local at = self.object:get_pos()
+		if at then
+			local out_of_bed = math.abs(at.x - pose.pos.x) > 0.4
+				or math.abs(at.z - pose.pos.z) > 0.4
+				or math.abs(at.y - pose.pos.y) > 1.0
+			if out_of_bed then
+				self.object:set_pos(pose.pos)
+			end
+		end
+	end
+
+	-- Hold the pose.
+	--
+	-- This was set once, on the assumption that mobs_redo's animation
+	-- setter would leave it alone while it believed the mob was standing.
+	-- It does not reliably, so the lay frames were being overwritten and
+	-- the villager stood in its own bed. Rather than re-sending the
+	-- animation on a timer - which either flickers or floods the network,
+	-- depending which way you tune it - the current animation is read
+	-- back and only corrected when something else has changed it.
+	--
+	-- Frame speed 0 holds a single frame, which is how minetest_game's
+	-- own beds pose a sleeping player.
+	local current = self.object.get_animation and self.object:get_animation()
+	if not current or current.x ~= BED_LAY.x or current.y ~= BED_LAY.y then
+		self:set_animation("stand")  -- let mobs_redo record "standing"...
+		self.object:set_animation(BED_LAY, 0, 0, false) -- ...then lie down
 	end
 	return true
 end
@@ -1151,7 +1181,7 @@ function lualore.behaviors.handle_night_time_movement_with_avoidance(self)
 		if lualore.path then
 			lualore.path.reset(self)
 		end
-		if lualore.behaviors.lie_down(self) then
+		if lualore.behaviors.lie_down(self, self.nv_last_dtime) then
 			return true
 		end
 		-- No bed to lie on (dug up, or the link is stale): stand by it.

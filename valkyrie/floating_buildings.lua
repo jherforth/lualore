@@ -491,6 +491,26 @@ local function place_castle_chest(plan)
 	end
 	local minp = {x = plan.minx, y = plan.base_y, z = plan.minz}
 	local maxp = {x = plan.maxx, y = plan.base_y + size.y + 2, z = plan.maxz}
+
+	-- The schematic itself carries a valkyrie chest, and it was saved
+	-- OPENED - whoever built the castle had opened it before the
+	-- schematic was taken, so every castle generated with its prize
+	-- already looted. That is the chest the designer meant to be there,
+	-- in the room they meant it in, so it is the one to use: shut it and
+	-- leave it. Any others are cleared, since opening one releases four
+	-- valkyries and a castle only needs the one fight.
+	local existing = minetest.find_nodes_in_area(minp, maxp,
+		{"lualore:valkyrie_chest", "lualore:valkyrie_chest_opened"})
+	if #existing > 0 then
+		set_closed_chest(existing[1])
+		for i = 2, #existing do
+			minetest.set_node(existing[i], {name = "air"})
+		end
+		return 1
+	end
+
+	-- No chest in the schematic: fall back to the mineral torches it
+	-- carries as anchors.
 	local torches = minetest.find_nodes_in_area(minp, maxp, {"everness:mineral_torch"})
 
 	-- Lowest anchor wins, nearest the middle of the castle on a tie: the
