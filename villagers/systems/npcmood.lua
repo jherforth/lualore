@@ -115,30 +115,19 @@ function lualore.mood.check_nearby_trade_items(self)
 		return false
 	end
 
-	-- Try to initialize trade items from mob name if not set
+	-- Fill in the trade list for anything that spawned before villagers.lua
+	-- started stamping it on activation. This used to be a second copy of
+	-- the class trade tables living here, which had already drifted out of
+	-- step with the real ones; it now reads the single published table.
 	if not self.nv_trade_items or #self.nv_trade_items == 0 then
-		-- Try to determine trade items from mob name
-		local mob_name = self.name or ""
-
-		-- Extract class from mob name (e.g., "lualore:grassland_farmer" -> "farmer")
-		local class_name = mob_name:match("_([^_]+)$")
-		if class_name then
-			-- Map of class to trade items (fallback if not set on spawn)
-			local class_trade_items = {
-				farmer = {"farming:bread", "farming:wheat"},
-				blacksmith = {"farming:bread","default:iron_lump", "default:coal_lump"},
-				jeweler = {"farming:bread","default:gold_lump"},
-				fisherman = {"farming:bread", "default:paper"},
-				ranger = {"farming:bread", "default:apple"},
-				cleric = {"farming:bread","default:mese_crystal"},
-				entertainer = {"farming:bread","default:gold_lump"},
-				witch = {"farming:bread", "default:apple","default:stick"},
-				bum = {"farming:bread", "default:apple"},
-			}
-
-			if class_trade_items[class_name] then
-				self.nv_trade_items = class_trade_items[class_name]
-			end
+		local class_name = lualore.jobs and lualore.jobs.get_class(self)
+			or (self.name or ""):match("_([^_]+)$")
+		local items = class_name and lualore.jobs
+			and lualore.jobs.trade_items_for(class_name)
+		if items then
+			-- a private copy: the published table is shared by every
+			-- villager of this class
+			self.nv_trade_items = table.copy(items)
 		end
 	end
 

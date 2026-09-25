@@ -803,6 +803,53 @@ local function build_village(center_x, center_z, palette, seed, scan_top, scan_b
 		end
 	end
 
+	-- 5. Furnish the village with the workstations no schematic carries:
+	--    the anvil and forge, the altar, and a tilled field or two. This
+	--    has to come after dressing, which plants over every free column
+	--    and would otherwise bury them. Never fatal.
+	local ws = lualore.workstations
+	if ws and ws.furnish then
+		local ok, err = pcall(ws.furnish, {
+			cx = center_x,
+			cz = center_z,
+			floor_y = floor_y,
+			palette = palette,
+			seed = seed,
+			plans = plans,
+			columns = site_columns,
+		})
+		if not ok then
+			minetest.log("warning",
+				"[lualore] Village furnishing failed: " .. tostring(err))
+		end
+	end
+
+	-- 6. Populate it. This does not wait for the chunk hook in
+	--    house_spawning.lua: a village is wider than the chunk that
+	--    builds it, its outer houses land in chunks that generated long
+	--    ago, and the placer may have retried for half a minute before
+	--    getting here - by which time those scans are over. The village
+	--    knows its own bounds and when it finished, so it asks directly.
+	--    The short delay lets the schematics settle into the map first.
+	local reach = eff_radius + 20
+	minetest.after(2, function()
+		local hs = lualore.house_spawning
+		if not (hs and hs.populate) then
+			return
+		end
+		local ok, spawned = pcall(hs.populate,
+			{x = center_x - reach, y = floor_y - 12, z = center_z - reach},
+			{x = center_x + reach, y = floor_y + 40, z = center_z + reach})
+		if ok then
+			minetest.log("action", string.format(
+				"[lualore] Village at %d,%d,%d populated: %d villagers",
+				center_x, floor_y, center_z, spawned or 0))
+		else
+			minetest.log("warning",
+				"[lualore] Village populate failed: " .. tostring(spawned))
+		end
+	end)
+
 	return true, house_count, central_count, floor_y, planted
 end
 
@@ -950,6 +997,25 @@ lualore.villages = {
 		return build_village(x, z, palette, seed or (get_world_salt() + os.time() % 100000))
 	end,
 	get_palettes = get_palettes,
+
+	-- Nearest recorded village to a position, or nil. Returns the record
+	-- plus the key it is stored under - the village standing system keys
+	-- a player's reputation by exactly that string, so it has to be the
+	-- same one /find_village reports.
+	find_near = function(pos, radius)
+		radius = radius or 120
+		local best, best_key, best_dist
+		for key, rec in pairs(load_records()) do
+			if type(rec) == "table" and rec.x then
+				local dist = vector.distance(pos,
+					{x = rec.x, y = rec.y or pos.y, z = rec.z})
+				if dist <= radius and (best_dist == nil or dist < best_dist) then
+					best, best_key, best_dist = rec, key, dist
+				end
+			end
+		end
+		return best, best_key, best_dist
+	end,
 }
 
 -- ------------------------------------------------------------------

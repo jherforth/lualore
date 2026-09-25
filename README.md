@@ -74,6 +74,20 @@ Defeat the Valkyries to free the Sky Folk. Once liberated, they'll mark the loca
 
 Sky buildings are placed on the floating crystal islands by the same deterministic grid the ground villages use: one site per cell, planned before anything is placed, so houses never overlap and never hang off the island. Most sites are small hamlets — the **skycastle**, which holds the single valkyrie chest, is rolled rarely on top of that. The chest always generates closed; opening it releases four Valkyries at once. Tuning and commands (`/spawn_skysite`, `/find_skysite`) are in `valkyrie/SKY_SITES.md`.
 
+### 🧑‍🌾 Villagers at Work
+
+Every villager claims a workstation near their bed and works it through the day, heading home
+at dusk. Each trade does something you can use: the **blacksmith** mends worn tools at his
+anvil, the **cleric** will make a village your respawn point for a mese crystal, the **farmer**
+works a real field you can also harvest, the **fisherman** fills his trap, the **jeweler**
+turns out valuables drawn from the local biome, the **entertainer** keeps the village's spirits
+up, and the **vagrant** — who has nothing to sell — will tell you where to find a ruin, a sky
+site or an obsidian shrine in exchange for a meal.
+
+Villages remember you. Feeding, trading and using what villagers make builds **standing**, and
+a village that knows you shares more of what it makes. It can only go up. See
+`villagers/VILLAGER_JOBS.md`.
+
 ### 🏗️ Village Buildings
 
 Each biome has unique structures: houses, churches, markets, stables and more. A village plan is computed first (flat ground, no overlapping footprints) and only then placed, so buildings always form a clean hamlet instead of scattering or overwriting each other.

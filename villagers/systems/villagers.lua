@@ -217,12 +217,107 @@ local villager_classes = {
 		drops = {
 			{name = "default:mese_crystal", chance = 1, min = 0, max = 1},
 		},
-		trade_items = {},  -- Witches don't trade
+		-- This said "Witches don't trade" and was empty, but an empty list
+		-- fell through to a fallback table in npcmood.lua that handed the
+		-- witch bread/apple/stick anyway - so in game she has always
+		-- traded. Now that the fallback reads this table, the list is
+		-- written out here to keep that behaviour rather than silently
+		-- removing an interaction players have.
+		trade_items = {"farming:bread", "default:apple", "default:stick"},
 	},
 }
 
 local class_order = {"hostile", "raider", "ranger", "jeweler", "farmer", "blacksmith",
                      "fisherman", "cleric", "bum", "entertainer", "witch"}
+
+-- Published so other modules stop keeping their own copies of it.
+-- npcmood.lua carried a second trade-item table that had already drifted
+-- out of step with this one.
+lualore.villager_classes = villager_classes
+
+--------------------------------------------------------------------
+-- TRADING
+--------------------------------------------------------------------
+-- One implementation, used by both the punch path and the sneak +
+-- right-click path. These were two copies of the same seventy lines,
+-- which is how they drifted: only one of them told the player when a
+-- villager was not in the mood, and neither called lualore.mood.on_trade
+-- (so trades gave no hunger relief and never played the trade sound -
+-- that function had never run at all).
+--
+-- Returns:
+--   "traded"  - the exchange happened
+--   "waiting" - right item, but the villager is not in a trading mood
+--   nil       - not a trade at all; the caller carries on
+--
+-- `lualore.on_villager_trade` is the hook the standing system will use
+-- later; nothing registers it yet.
+local function try_trade(self, player)
+	if not self.nv_trade_items or not player then
+		return nil
+	end
+
+	local item = player:get_wielded_item()
+	local item_name = item:get_name()
+	local player_name = player:get_player_name()
+
+	local wanted = false
+	for _, trade_item in ipairs(self.nv_trade_items) do
+		if item_name == trade_item then
+			wanted = true
+			break
+		end
+	end
+	if not wanted then
+		return nil
+	end
+
+	if not self.nv_wants_trade then
+		minetest.chat_send_player(player_name,
+			S("Villager is not interested in trading right now."))
+		return "waiting"
+	end
+
+	if not mobs.is_creative(player_name) then
+		item:take_item()
+		player:set_wielded_item(item)
+	end
+
+	-- The reward is rolled from the villager's drop table, one roll per
+	-- entry, so a trade can legitimately come up empty.
+	local pos = self.object and self.object:get_pos()
+	if pos and self.drops then
+		pos.y = pos.y + 0.5
+		local given = 0
+		for _, drop_def in ipairs(self.drops) do
+			if math.random(1, drop_def.chance) == 1 then
+				local count = math.random(drop_def.min, drop_def.max)
+				if count > 0 then
+					minetest.add_item(pos, {name = drop_def.name, count = count})
+					given = given + 1
+				end
+			end
+		end
+		if given > 0 then
+			minetest.chat_send_player(player_name, S("Trade successful!"))
+		else
+			minetest.chat_send_player(player_name,
+				S("Villager has nothing to trade right now."))
+		end
+	end
+
+	self.nv_wants_trade = false
+	self.nv_trade_interest_timer = 0
+
+	if lualore.mood and lualore.mood.on_trade then
+		lualore.mood.on_trade(self, player)
+	end
+	if lualore.on_villager_trade then
+		lualore.on_villager_trade(self, player, item_name)
+	end
+
+	return "traded"
+end
 
 --------------------------------------------------------------------
 -- Register a single villager mob
@@ -240,7 +335,9 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 			end
 		end
 	else
-		-- Regular villagers use standard behavior
+		-- Regular villagers use standard behavior, plus their job if the
+		-- class has one. Classes with no entry in lualore.jobs.classes
+		-- (hostile, raider) get a nil job_def and an unchanged tick.
 		custom_function = function(self, dtime)
 			-- Wrap in error handler to prevent crashes
 			local success, err = pcall(function()
@@ -252,6 +349,14 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 				-- Update enhanced behaviors
 				if lualore.behaviors then
 					lualore.behaviors.update(self, dtime)
+				end
+
+				-- Work the job
+				if lualore.jobs then
+					local job_def = lualore.jobs.classes[class_name]
+					if job_def then
+						lualore.jobs.update(self, dtime, job_def)
+					end
 				end
 			end)
 
@@ -317,6 +422,15 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 		do_custom = custom_function,
 
 		on_activate = function(self, staticdata, dtime_s)
+			-- Who this villager is. Nothing used to carry the class on the
+			-- entity, so every consumer re-derived it from the entity name.
+			self.nv_class = class_name
+
+			-- nv_trade_items and drops come off the mob prototype, which is
+			-- shared by every instance of this class across all six biomes.
+			-- Take a private copy before anything can grow or trim it.
+			self.nv_trade_items = table.copy(class_def.trade_items or {})
+
 			-- Wrap everything in error handler to prevent crashes
 			local success, err = pcall(function()
 				-- Deserialize saved data
@@ -346,6 +460,16 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 						if lualore.behaviors and data.behaviors then
 							lualore.behaviors.load_save_data(self, data.behaviors)
 						end
+
+						-- Restore job data
+						if lualore.jobs and data.jobs then
+							lualore.jobs.on_activate_extra(self, data.jobs)
+						end
+
+						-- Restore trade data
+						if lualore.trade and data.trade then
+							lualore.trade.on_activate_extra(self, data.trade)
+						end
 					end
 				end
 
@@ -357,6 +481,11 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 				-- Initialize behaviors system
 				if lualore.behaviors then
 					lualore.behaviors.init_house(self)
+				end
+
+				-- Initialize job state
+				if lualore.jobs then
+					lualore.jobs.init(self)
 				end
 			end)
 
@@ -394,6 +523,16 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 					tmp.behaviors = lualore.behaviors.get_save_data(self)
 				end
 
+				-- Add job data if available
+				if lualore.jobs then
+					tmp.jobs = lualore.jobs.get_save_data(self)
+				end
+
+				-- Add trade data if available
+				if lualore.trade then
+					tmp.trade = lualore.trade.get_save_data(self)
+				end
+
 				return minetest.serialize(tmp)
 			end)
 
@@ -407,6 +546,11 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 		end,
 
 		on_die = function(self, pos)
+			-- Give up the workstation so somebody else can take it
+			if lualore.jobs then
+				lualore.jobs.release_station(self)
+			end
+
 			-- Clean up mood indicator
 			if self.nv_mood_indicator_id then
 				local indicator = minetest.get_objects_by_id(self.nv_mood_indicator_id)
@@ -432,71 +576,10 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 				return
 			end
 
-			local item = hitter:get_wielded_item()
-			local item_name = item:get_name()
-			local player_name = hitter:get_player_name()
-
-			minetest.log("action", "[lualore] Player: " .. player_name .. " Item: " .. item_name)
-			minetest.log("action", "[lualore] Has trade_items: " .. tostring(self.nv_trade_items ~= nil))
-			minetest.log("action", "[lualore] Wants trade: " .. tostring(self.nv_wants_trade))
-
-			-- Check if player is holding a trade item this villager wants
-			if self.nv_trade_items then
-				local wants_this_item = false
-				for _, trade_item in ipairs(self.nv_trade_items) do
-					if item_name == trade_item then
-						wants_this_item = true
-						break
-					end
-				end
-
-				minetest.log("action", "[lualore] Wants this item: " .. tostring(wants_this_item))
-
-				if wants_this_item and self.nv_wants_trade then
-					-- Take the item from player (if not creative)
-					if not mobs.is_creative(player_name) then
-						item:take_item()
-						hitter:set_wielded_item(item)
-					end
-
-					-- Drop a random item from the villager's drop table
-					local pos = self.object:get_pos()
-					if pos and self.drops then
-						pos.y = pos.y + 0.5
-						local drop_list = {}
-
-						-- Build list of possible drops based on chance
-						for _, drop_def in ipairs(self.drops) do
-							if math.random(1, drop_def.chance) == 1 then
-								local count = math.random(drop_def.min, drop_def.max)
-								if count > 0 then
-									table.insert(drop_list, {name = drop_def.name, count = count})
-								end
-							end
-						end
-
-						-- Drop the items
-						if #drop_list > 0 then
-							for _, drop in ipairs(drop_list) do
-								minetest.add_item(pos, {name = drop.name, count = drop.count})
-							end
-							minetest.chat_send_player(player_name, S("Trade successful!"))
-						else
-							minetest.chat_send_player(player_name, S("Villager has nothing to trade right now."))
-						end
-					end
-
-					-- Reset trade interest after successful trade
-					self.nv_wants_trade = false
-					self.nv_trade_interest_timer = 0
-
-					-- Update mood for positive interaction
-					if lualore.mood then
-						lualore.mood.on_interact(self, hitter)
-					end
-
-					return
-				end
+			-- Punching with an item the villager wants is a trade, not an
+			-- attack. Same code path as sneak + right-click.
+			if try_trade(self, hitter) then
+				return
 			end
 
 			-- DEFENSIVE BEHAVIOR: If this is an NPC being attacked (not a trade), fight back!
@@ -571,62 +654,26 @@ local function register_villager(class_name, class_def, biome_name, biome_config
 			local item_name = item:get_name()
 			local is_sneaking = clicker:get_player_control().sneak
 
-			-- SNEAK + RIGHT-CLICK: Trading
-			if is_sneaking and self.nv_trade_items then
-				local wants_this_item = false
-				for _, trade_item in ipairs(self.nv_trade_items) do
-					if item_name == trade_item then
-						wants_this_item = true
-						break
-					end
-				end
-
-				if wants_this_item and self.nv_wants_trade then
-					-- Take the item from player (if not creative)
-					if not mobs.is_creative(name) then
-						item:take_item()
-						clicker:set_wielded_item(item)
-					end
-
-					-- Drop a random item from the villager's drop table
-					local pos = self.object:get_pos()
-					if pos and self.drops then
-						pos.y = pos.y + 0.5
-						local drop_list = {}
-
-						-- Build list of possible drops based on chance
-						for _, drop_def in ipairs(self.drops) do
-							if math.random(1, drop_def.chance) == 1 then
-								local count = math.random(drop_def.min, drop_def.max)
-								if count > 0 then
-									table.insert(drop_list, {name = drop_def.name, count = count})
-								end
-							end
-						end
-
-						-- Drop the items
-						if #drop_list > 0 then
-							for _, drop in ipairs(drop_list) do
-								minetest.add_item(pos, {name = drop.name, count = drop.count})
-							end
-							minetest.chat_send_player(name, S("Trade successful!"))
-						else
-							minetest.chat_send_player(name, S("Villager has nothing to trade right now."))
-						end
-					end
-
-					-- Reset trade interest after successful trade
-					self.nv_wants_trade = false
-					self.nv_trade_interest_timer = 0
-
-					-- Update mood for positive interaction
-					if lualore.mood then
-						lualore.mood.on_interact(self, clicker)
-					end
-
+			-- SNEAK + RIGHT-CLICK: open the trade window. The old path
+			-- took whatever you happened to be holding and rolled the
+			-- villager's death-drop table onto the ground, which showed
+			-- the player nothing and gave them a lottery. try_trade is
+			-- kept below for the punch path, which is still how you
+			-- hand something over without opening anything.
+			if is_sneaking then
+				if lualore.trade and lualore.trade.show then
+					lualore.trade.show(clicker, self)
 					return
-				elseif wants_this_item and not self.nv_wants_trade then
-					minetest.chat_send_player(name, S("Villager is not interested in trading right now."))
+				end
+				if try_trade(self, clicker) then
+					return
+				end
+			end
+
+			-- EMPTY HAND: ask about their work. Checked before the
+			-- feeding branches so it cannot swallow a held item.
+			if item_name == "" and lualore.jobs and lualore.jobs.on_interact then
+				if lualore.jobs.on_interact(self, clicker) then
 					return
 				end
 			end

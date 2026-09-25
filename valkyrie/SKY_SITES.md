@@ -57,10 +57,19 @@ plus three `skyhouse` variants — sharing two noises:
 - **The castle is rolled separately and rarely.** Most sites are plain
   hamlets of 2–6 houses.
 - **One valkyrie chest, in the castle only.** Opening it releases four
-  valkyries at once, so a single chest is the whole fight. It goes on the
-  lowest mineral torch inside the castle's own footprint (nearest the middle
-  on a tie), so it sits on a floor the player walks onto. The castle's other
-  three torches — and all eight in `skyhouse1` — stay lit torches.
+  valkyries at once, so a single chest is the whole fight.
+- **The chest is the one the schematic ships.** `skycastle.mts` carries a
+  valkyrie chest at its own offset (11,19,10) — and it was saved *opened*,
+  so every castle generated with its prize already looted. The placer shuts
+  that one and leaves it where the designer put it, rather than putting a
+  second chest somewhere else. If a schematic ever ships without a chest, it
+  falls back to the mineral torches the castle carries as anchors. Either
+  way the torches in `skyhouse1` stay lit torches.
+- **Castles that generated before this fix repair themselves.** An LBM shuts
+  any valkyrie chest that is open but has no `opened` flag in its metadata:
+  opening one sets that flag, and a schematic-placed node has no metadata at
+  all, so an opened chest that does not know it was opened was never opened
+  by anybody. A chest a player actually looted is left alone.
 - **The chest is always generated closed.** It is placed as
   `lualore:valkyrie_chest` (the closed node, never `..._opened`), `set_node`
   drops any metadata at that position, and the `opened` flag is then written
