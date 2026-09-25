@@ -207,9 +207,30 @@ Three things in there are less obvious than they look, and each one was a bug fi
   whose door faces south and the square *inside* the door is nearer to you than the one
   outside, because the wall between does not count towards a straight-line measurement. That
   sent villagers to the wrong side of their own front door.
+- **Getting through is measured by which side of the door the villager is on**, not by
+  reaching the far square. Waiting to arrive somewhere exactly is what left them shuffling on
+  the threshold, and distances to a threshold are measured flat, ignoring height, because a
+  house floor is rarely level with the ground outside it.
+- **The crossing itself is walked for them.** Everywhere else only sets a direction and lets
+  mobs_redo move the mob, which is fine over open ground — a wobble of a few degrees does not
+  matter ten nodes out. A doorway is one node wide and mobs_redo changes a walking mob's
+  course at random, so over the two nodes of a threshold that wobble is the difference between
+  going through and shouldering the frame. Only while mid-crossing, only along an axis already
+  shown clear on both sides, only while the door is open.
 - **Route corners are aimed at one at a time.** A route is a chain of adjacent nodes; a
   generous "close enough" radius skips two or three at once and the villager ends up aiming
   diagonally across a corner, into the corner block.
+
+Villagers **sleep on their beds**. One that has reached its bed lies down on it, in the middle
+of the pair and along its length, using frames 162–166 of `character.b3d` — the model's lay
+pose, which this mod's animation table happens to call "die", which is why a dying villager
+appears to lie down. Holding the pose takes a small trick: mobs_redo sets the animation from
+the mob's state every step, but its setter returns early when asked for the animation already
+current, so the villager reports "standing", lets mobs_redo record that, and then sets the lay
+frames straight on the object. Waking asks mobs_redo for "walk", which clears the cache and
+takes the model back. Position is re-asserted each tick while asleep, because mobs_redo still
+rolls its walk chance from the stand state and would otherwise nudge a sleeper out of bed by
+morning. No bed there any more and it just stands by where the bed was.
 
 Doors are opened once per crossing and shut once it is finished — never on a timer. An
 earlier version also shut a door after ten seconds, so a villager that opened one and failed

@@ -170,7 +170,31 @@ function lualore.behaviors.steer(self, goal, dtime)
 		step = lualore.path.next_step(self, goal, dtime or 0) or goal
 	end
 	self.object:set_yaw(minetest.dir_to_yaw(vector.direction(pos, step)))
+	-- A doorway is too narrow to leave to a mob that changes course at
+	-- random, so the crossing itself is walked for it.
+	if lualore.path and lualore.path.drive_crossing then
+		lualore.path.drive_crossing(self, dtime or 0)
+	end
 	return step
+end
+
+-- Is another villager heading through this door? Anyone whose journey
+-- names it, not merely anyone standing near it.
+function lualore.behaviors.door_wanted_by_other(door_pos, me)
+	if not (lualore.path and lualore.path.crossing) then
+		return false
+	end
+	for _, obj in ipairs(minetest.get_objects_inside_radius(door_pos, 8)) do
+		local ent = obj:get_luaentity()
+		if ent and ent ~= me and ent.name
+				and ent.name:find("lualore:", 1, true) == 1 then
+			local theirs = lualore.path.crossing(ent)
+			if theirs and vector.distance(theirs, door_pos) < 1.5 then
+				return true
+			end
+		end
+	end
+	return false
 end
 
 -- Is anybody else standing in the doorway? Never shut a door on them.
@@ -217,12 +241,38 @@ function lualore.behaviors.handle_doors(self, dtime, nav_target)
 		local still_using = crossing
 			and vector.distance(crossing, mine) < 1.5
 
-		if not still_using and dist > DOOR_CLEAR then
+		-- Nor shut it on somebody else who is on their way through it.
+		-- Without this the first villager home shuts the door in the face
+		-- of the next one, who then has to stop and open it again - and
+		-- with several arriving at dusk the door never stops moving.
+		if not still_using and lualore.behaviors.door_wanted_by_other(mine, self) then
+			still_using = true
+		end
+
+		-- Am I actually on the other side of it now? Distance alone is
+		-- not enough: a villager opens a door from a couple of nodes back
+		-- and is still that far from it a moment later, so "far enough to
+		-- shut it" fired while it was still walking up to the thing. It
+		-- then shut it, stepped closer, and opened it again.
+		local crossed = false
+		local from = self.nv_door_from
+		if from then
+			local ax, az = pos.x - mine.x, pos.z - mine.z
+			local bx, bz = from.x - mine.x, from.z - mine.z
+			crossed = (ax * bx + az * bz) < 0
+		end
+
+		if not still_using and crossed and dist > DOOR_CLEAR then
 			if not lualore.behaviors.doorway_busy(mine, self) then
 				doors_api.set(mine, false)
 			end
 			self.nv_door_opened = nil
 			self.nv_door_from = nil
+			-- Shut one, and that is this villager's business with doors
+			-- finished for now. Falling through to the opening code in
+			-- the same breath is what produced a shut and an open on the
+			-- same tick - a visible flicker rather than a door closing.
+			return
 		elseif not still_using and dist > DOOR_FORGET then
 			-- Wandered off without crossing. Leave it open rather than
 			-- reaching across the village to shut it; the village sweep
@@ -251,6 +301,12 @@ function lualore.behaviors.handle_doors(self, dtime, nav_target)
 		end
 	else
 		door_pos = doors_api.find_closed_near(pos, DOOR_REACH)
+		-- find_nodes_in_area works in whole nodes, so its box reaches
+		-- further than the radius asked for; check the real distance or a
+		-- villager opens doors from most of a node too far away.
+		if door_pos and vector.distance(pos, door_pos) > DOOR_REACH then
+			door_pos = nil
+		end
 		-- Without a journey, only open a door we are squarely heading
 		-- into. A plain "is it vaguely that way" test was too generous:
 		-- a villager that had just left its house and was walking round
@@ -278,6 +334,104 @@ function lualore.behaviors.handle_doors(self, dtime, nav_target)
 		self.nv_door_from = vector.new(pos)
 		self.nv_door_opened_at = minetest.get_gametime()
 	end
+end
+
+--------------------------------------------------------------------
+-- SLEEPING
+--------------------------------------------------------------------
+-- A villager that has reached its bed lies down on it, the way you would
+-- expect, instead of standing beside it all night.
+--
+-- The pose is frames 162-166 of character.b3d, which is the model's LAY
+-- animation. This mod's animation table calls that range "die", which is
+-- why a dying villager appears to lie down - same frames, different
+-- intent.
+--
+-- Holding the pose takes a small trick. mobs_redo sets the animation
+-- from the mob's state every step, but its setter returns early when the
+-- animation it is asked for is already the current one. So we tell it we
+-- are standing, let it record that, and then set the lay frames straight
+-- on the object. It believes nothing has changed and leaves the pose
+-- alone. Waking up asks mobs_redo for "walk", which clears the cache and
+-- takes the model back.
+local BED_LAY = {x = 162, y = 166}
+
+-- Where and which way round to lie, from the bed node itself.
+function lualore.behaviors.bed_pose(bed_pos)
+	local node = minetest.get_node(bed_pos)
+	if minetest.get_item_group(node.name, "bed") == 0 then
+		return nil -- somebody took the bed away
+	end
+
+	local pose = {
+		pos = {x = bed_pos.x, y = bed_pos.y + 0.4, z = bed_pos.z},
+		yaw = 0,
+	}
+	-- A bed is two nodes. Lie along it, in the middle of the pair.
+	for _, off in ipairs({{x = 1, z = 0}, {x = -1, z = 0},
+			{x = 0, z = 1}, {x = 0, z = -1}}) do
+		local other = {x = bed_pos.x + off.x, y = bed_pos.y, z = bed_pos.z + off.z}
+		if minetest.get_item_group(minetest.get_node(other).name, "bed") > 0 then
+			pose.pos.x = (bed_pos.x + other.x) / 2
+			pose.pos.z = (bed_pos.z + other.z) / 2
+			pose.yaw = minetest.dir_to_yaw({x = off.x, y = 0, z = off.z})
+			break
+		end
+	end
+	return pose
+end
+
+function lualore.behaviors.lie_down(self)
+	if not self.object or not self.nv_house_pos then
+		return false
+	end
+	local pose = lualore.behaviors.bed_pose(self.nv_house_pos)
+	if not pose then
+		return false
+	end
+
+	-- Re-asserted every tick while asleep: mobs_redo will still roll its
+	-- walk chance from the stand state and nudge the mob, and this is
+	-- what keeps a sleeping villager in its bed instead of drifting out
+	-- of it by morning.
+	self.object:set_pos(pose.pos)
+	self.object:set_velocity({x = 0, y = 0, z = 0})
+	self.object:set_yaw(pose.yaw)
+	self.state = "stand"
+
+	if not self.nv_in_bed then
+		self:set_animation("stand")   -- let mobs_redo cache "stand"...
+		self.object:set_animation(BED_LAY, 8, 0, true)  -- ...then lie down
+		self.nv_in_bed = true
+	end
+	return true
+end
+
+function lualore.behaviors.get_up(self)
+	if not self.nv_in_bed then
+		return
+	end
+	self.nv_in_bed = nil
+	if not self.object then
+		return
+	end
+	-- Step off the bed so the day does not start standing in it.
+	local pos = self.object:get_pos()
+	if pos then
+		for _, off in ipairs({{x = 1, z = 0}, {x = -1, z = 0},
+				{x = 0, z = 1}, {x = 0, z = -1}}) do
+			local beside = {x = math.floor(pos.x + 0.5) + off.x, y = pos.y,
+				z = math.floor(pos.z + 0.5) + off.z}
+			local here = minetest.get_node(beside).name
+			local above = minetest.get_node(
+				{x = beside.x, y = beside.y + 1, z = beside.z}).name
+			if here == "air" and above == "air" then
+				self.object:set_pos(beside)
+				break
+			end
+		end
+	end
+	self:set_animation("walk") -- clears the cached pose
 end
 
 --------------------------------------------------------------------
@@ -984,12 +1138,23 @@ function lualore.behaviors.handle_night_time_movement_with_avoidance(self)
 	self.nv_at_station = false
 	self.nv_work_spot = nil
 
+	if not lualore.behaviors.is_at_house(self) and self.nv_in_bed then
+		lualore.behaviors.get_up(self)
+	end
+
 	if lualore.behaviors.is_at_house(self) then
-		-- Home. Settle by the bed instead of drifting straight back out:
-		-- mobs_redo would otherwise roll its walk chance and wander off,
-		-- which is what made villagers bob in and out all night.
+		-- Home. Into bed, and stay there: mobs_redo would otherwise roll
+		-- its walk chance and wander off, which is what made villagers
+		-- bob in and out all night.
 		self.nv_sleeping = true
 		self._target = nil
+		if lualore.path then
+			lualore.path.reset(self)
+		end
+		if lualore.behaviors.lie_down(self) then
+			return true
+		end
+		-- No bed to lie on (dug up, or the link is stale): stand by it.
 		self.object:set_velocity({x = 0, y = 0, z = 0})
 		self.state = "stand"
 		self:set_animation("stand")
@@ -1088,6 +1253,9 @@ function lualore.behaviors.update(self, dtime)
 		end
 	else
 		-- Daytime: out of bed and back to the village
+		if self.nv_in_bed then
+			lualore.behaviors.get_up(self)
+		end
 		self.nv_sleeping = false
 
 		-- Update state timer and handle transitions
@@ -1166,6 +1334,10 @@ function lualore.behaviors.load_save_data(self, data)
 	self.nv_door_from = data.nv_door_from
 	self.nv_door_opened_at = data.nv_door_opened_at or 0
 	-- State machine data
+	-- Deliberately NOT restored as "in bed": the pose is re-applied on
+	-- the first tick of being home, and a villager reloaded believing it
+	-- is already lying down would never set the animation.
+	self.nv_in_bed = nil
 	self.nv_behavior_state = data.nv_behavior_state or lualore.behaviors.states.SOCIALIZING
 	self.nv_state_timer = data.nv_state_timer or 0
 	self.nv_state_target_reached = data.nv_state_target_reached or false

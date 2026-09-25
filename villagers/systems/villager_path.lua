@@ -60,6 +60,17 @@ local THRESHOLD_HIT = 1.0   -- close enough to the threshold to step through
 local MAX_JUMP = 1
 local MAX_DROP = 3
 
+-- Distances between a villager and a place it is trying to reach are
+-- measured FLAT, ignoring height. A house floor is rarely at the same
+-- level as the ground outside it - the schematics sink their foundations
+-- - so a full 3D distance to a threshold square could sit just over the
+-- limit for ever while the villager stood right on it. That is what kept
+-- them pacing in their own doorways.
+local function flat_dist(a, b)
+	local dx, dz = a.x - b.x, a.z - b.z
+	return math.sqrt(dx * dx + dz * dz)
+end
+
 local function block(pos)
 	return {x = math.floor(pos.x + 0.5), y = math.floor(pos.y + 0.5),
 		z = math.floor(pos.z + 0.5)}
@@ -241,7 +252,7 @@ local function route_step(self, pos, target, dtime)
 	if self.nv_route and not goal_moved then
 		local route = self.nv_route
 		local index = self.nv_route_index or 1
-		while index <= #route and vector.distance(pos, route[index]) < WAYPOINT_HIT do
+		while index <= #route and flat_dist(pos, route[index]) < WAYPOINT_HIT do
 			index = index + 1
 		end
 		self.nv_route_index = index
@@ -306,7 +317,7 @@ function lualore.path.next_step(self, goal, dtime)
 	-- ---------------------------------------------------------------
 	if journey then
 		if journey.stage == "to_door" then
-			if vector.distance(pos, journey.entry) <= THRESHOLD_HIT then
+			if flat_dist(pos, journey.entry) <= THRESHOLD_HIT then
 				journey.stage = "at_door"
 				clear_route(self)
 			else
@@ -333,7 +344,15 @@ function lualore.path.next_step(self, goal, dtime)
 
 		if journey.stage == "through" then
 			self.nv_waiting_at_door = nil
-			if vector.distance(pos, journey.exit) <= THRESHOLD_HIT then
+			-- Did we get past it? Measured as which side of the door we
+			-- are on, not by how near the far square is. Waiting to
+			-- arrive somewhere exactly is what left them shuffling on the
+			-- threshold; being past the doorway is the thing that
+			-- actually matters, and it cannot be undone by a wobble.
+			local axis = journey.axis or {x = 0, z = 0}
+			local past = (pos.x - journey.door.x) * axis.x
+				+ (pos.z - journey.door.z) * axis.z
+			if past > 0.55 then
 				journey.stage = "to_goal"
 				journey.crossed = true
 				clear_route(self)
@@ -345,24 +364,22 @@ function lualore.path.next_step(self, goal, dtime)
 				-- villager shoving at a doorframe. Aiming at the door node
 				-- itself pulls it onto the axis, because that node is the
 				-- gap.
-				local axis = journey.axis or {x = 0, z = 0}
-				local off
+				-- Aim along the doorway's centre line, well past the far
+				-- side. Aiming AT the far square let the villager drift
+				-- off the line and clip the doorframe, then correct, then
+				-- drift again - the pacing. A point down the middle of
+				-- the gap and beyond it pulls it straight through.
 				if axis.x ~= 0 then
-					off = math.abs(pos.z - journey.door.z)
-				else
-					off = math.abs(pos.x - journey.door.x)
+					return {x = journey.door.x + axis.x * 2.5,
+						y = pos.y, z = journey.door.z}
 				end
-				if off > 0.35 then
-					return {x = journey.door.x, y = pos.y, z = journey.door.z}
-				end
-				-- Straight through. Two nodes, no pathing: A* cannot
-				-- describe this step by definition.
-				return journey.exit
+				return {x = journey.door.x, y = pos.y,
+					z = journey.door.z + axis.z * 2.5}
 			end
 		end
 
 		if journey.stage == "to_goal" then
-			if vector.distance(pos, goal) <= NEAR_GOAL then
+			if flat_dist(pos, goal) <= NEAR_GOAL then
 				lualore.path.reset(self)
 				return goal
 			end
@@ -409,6 +426,74 @@ function lualore.path.next_step(self, goal, dtime)
 	end
 
 	return goal
+end
+
+-- Walk the villager through the gap.
+--
+-- Everything else here only sets a direction and lets mobs_redo do the
+-- moving, which is fine over open ground: a wobble of a few degrees does
+-- not matter when the target is ten nodes away. A doorway is one node
+-- wide, and mobs_redo changes a walking mob's course at random, so over
+-- the two nodes of a threshold that wobble is the difference between
+-- going through and shouldering the frame. For the crossing only, the
+-- villager is moved along the centre line directly.
+--
+-- Deliberately narrow: only while mid-crossing, only along the axis
+-- already shown to be clear on both sides, only while the door is open,
+-- and never more than the width of the doorway.
+local CROSS_SPEED = 1.6
+local CROSS_FROM = -1.7   -- how far back along the axis to pick it up
+local CROSS_TO = 1.2      -- how far past the door to carry it
+local CROSS_SIDEWAYS = 1.3 -- lateral slack it will still be taken from
+
+function lualore.path.drive_crossing(self, dtime)
+	local journey = self.nv_journey
+	if not journey or journey.stage ~= "through" or not self.object then
+		return false
+	end
+	if not is_open(journey.door) then
+		return false
+	end
+	local pos = self.object:get_pos()
+	if not pos then
+		return false
+	end
+	local axis = journey.axis or {x = 0, z = 0}
+	local door = journey.door
+
+	-- Where the villager is along the doorway, and how far off its
+	-- centre line. The corridor entry -> door -> exit is known clear:
+	-- plan_journey only accepted this doorway because both sides are
+	-- standable and A* reached one of them. So rather than testing its
+	-- way forward node by node - which fails the moment the villager is
+	-- a little to one side, because the node ahead is then the wall
+	-- beside the door - it is walked along that centre line.
+	local along = (pos.x - door.x) * axis.x + (pos.z - door.z) * axis.z
+	local sideways
+	if axis.x ~= 0 then
+		sideways = pos.z - door.z
+	else
+		sideways = pos.x - door.x
+	end
+
+	-- Too far off to be in this doorway at all: leave it to walk itself
+	-- back into position.
+	if along < CROSS_FROM or along > CROSS_TO
+			or math.abs(sideways) > CROSS_SIDEWAYS then
+		return false
+	end
+
+	local next_along = math.min(CROSS_TO, along + CROSS_SPEED * (dtime or 0))
+	local nx, nz
+	if axis.x ~= 0 then
+		nx = door.x + axis.x * next_along
+		nz = door.z          -- snap onto the centre line
+	else
+		nx = door.x
+		nz = door.z + axis.z * next_along
+	end
+	self.object:set_pos({x = nx, y = pos.y, z = nz})
+	return true
 end
 
 -- Is this villager mid-crossing? The door handler asks, so it does not
