@@ -186,11 +186,37 @@ cannot path is never worse off.
 
 **Doorways are handled by hand, and have to be.** The engine's pathfinder asks whether a node
 is `walkable`, and a door node is — open or shut, because what actually swings aside is the
-door's collision box, not its walkability. So A* will never route through a doorway. When a
-route fails, the villager heads for the square in front of the nearest door instead; the door
-handler opens it on approach; and then it steps through along the axis it crossed. Once
-inside, ordinary pathing resumes. It is the one place the villager solves the maze by opening
-it rather than going round.
+door's collision box, not its walkability. A bed inside a house is therefore *unreachable* as
+far as A* is concerned, so a trip indoors is walked as an ordered journey:
+
+1. **To the door** — path to the square outside the doorway. Ordinary A*, and it works,
+   because that square is outside the building.
+2. **Through it** — line up with the gap, wait for the door to actually be open, then step to
+   the square on the far side. Two nodes, no pathing: A* cannot describe this step.
+3. **To the goal** — path from inside to the bed. Ordinary A* again.
+
+Leaving in the morning is the same journey in reverse and falls out of the same code.
+
+Three things in there are less obvious than they look, and each one was a bug first:
+
+- **Which way a doorway runs is read off the world** — the axis whose two opposite neighbours
+  are both standable — never from the direction the villager is coming from. Derive it from
+  the villager's heading and a diagonal approach puts the "square outside the door" inside a
+  wall.
+- **Which side the villager is on is decided by A*, not by distance.** Stand west of a house
+  whose door faces south and the square *inside* the door is nearer to you than the one
+  outside, because the wall between does not count towards a straight-line measurement. That
+  sent villagers to the wrong side of their own front door.
+- **Route corners are aimed at one at a time.** A route is a chain of adjacent nodes; a
+  generous "close enough" radius skips two or three at once and the villager ends up aiming
+  diagonally across a corner, into the corner block.
+
+Doors are opened once per crossing and shut once it is finished — never on a timer. An
+earlier version also shut a door after ten seconds, so a villager that opened one and failed
+to get through would have it shut again, walk back up, open it again, and clatter away
+indefinitely. A villager that wanders off leaves the door open instead; the village sweep
+shuts everything at 10pm. Several villagers can share one doorway: the first opens it, the
+rest walk through, and nobody shuts it on anybody.
 
 ## Village standing
 

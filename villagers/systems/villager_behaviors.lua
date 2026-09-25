@@ -148,7 +148,7 @@ end
 local DOOR_REACH         = 2     -- how far a villager reaches for a door
 local DOOR_SCAN_INTERVAL = 0.4   -- seconds between door scans
 local DOOR_CLEAR         = 1.8   -- far enough past a door to shut it
-local DOOR_HOLD          = 10    -- give up holding a door open after this
+local DOOR_FORGET        = 6     -- far enough away to stop minding it
 
 -- Point the villager at where it should walk NEXT, which is not always
 -- where it wants to end up: villager_path.lua routes round corners and
@@ -197,47 +197,81 @@ function lualore.behaviors.handle_doors(self, dtime, nav_target)
 	local pos = self.object:get_pos()
 	if not pos then return end
 
-	-- Close the door we opened, once we are through and clear of it.
-	-- "Through" means on the far side from where we opened it, not just
-	-- far away: a villager reaches a door from up to DOOR_REACH nodes
-	-- back, so distance alone would have it shut the door again before
-	-- it ever stepped over the threshold.
+	self.nv_door_timer = (self.nv_door_timer or 0) + (dtime or 0)
+	if self.nv_door_timer < DOOR_SCAN_INTERVAL then return end
+	self.nv_door_timer = 0
+
+	-- ---------------------------------------------------------------
+	-- Shutting the one we opened
+	-- ---------------------------------------------------------------
+	-- Only ever once, and only after the crossing is finished. The first
+	-- version also shut a door on a timeout, which is what made them
+	-- clatter: a villager that opened a door and then did not get
+	-- through would have it shut again ten seconds later, walk back up to
+	-- it, open it again, and so on for as long as it kept failing.
 	local mine = self.nv_door_opened
 	if mine then
 		local dist = vector.distance(pos, mine)
-		local held = minetest.get_gametime() - (self.nv_door_opened_at or 0)
-		local crossed = false
-		local from = self.nv_door_from
-		if from then
-			local ax, az = pos.x - mine.x, pos.z - mine.z
-			local bx, bz = from.x - mine.x, from.z - mine.z
-			crossed = (ax * bx + az * bz) < 0
-		end
-		if (crossed and dist > DOOR_CLEAR) or held > DOOR_HOLD then
-			if dist > DOOR_CLEAR and not lualore.behaviors.doorway_busy(mine, self) then
+		local crossing = lualore.path and lualore.path.crossing
+			and lualore.path.crossing(self)
+		local still_using = crossing
+			and vector.distance(crossing, mine) < 1.5
+
+		if not still_using and dist > DOOR_CLEAR then
+			if not lualore.behaviors.doorway_busy(mine, self) then
 				doors_api.set(mine, false)
 			end
+			self.nv_door_opened = nil
+			self.nv_door_from = nil
+		elseif not still_using and dist > DOOR_FORGET then
+			-- Wandered off without crossing. Leave it open rather than
+			-- reaching across the village to shut it; the village sweep
+			-- closes everything at ten anyway.
 			self.nv_door_opened = nil
 			self.nv_door_from = nil
 		end
 	end
 
-	self.nv_door_timer = (self.nv_door_timer or 0) + (dtime or 0)
-	if self.nv_door_timer < DOOR_SCAN_INTERVAL then return end
-	self.nv_door_timer = 0
+	-- ---------------------------------------------------------------
+	-- Opening the one in front of us
+	-- ---------------------------------------------------------------
+	-- A journey knows exactly which door it means to use, so use that
+	-- when there is one and fall back to "whatever is in front of me"
+	-- otherwise.
+	local target_door = lualore.path and lualore.path.crossing
+		and lualore.path.crossing(self)
 
-	local door_pos = doors_api.find_closed_near(pos, DOOR_REACH)
-	if not door_pos then return end
-
-	-- Only open a door we are actually heading towards, so a villager
-	-- walking past a house does not fling its door open.
-	if nav_target then
-		local to_door = vector.direction(pos, door_pos)
-		local to_goal = vector.direction(pos, nav_target)
-		if (to_door.x * to_goal.x + to_door.z * to_goal.z) < 0 then
-			return
+	local door_pos
+	if target_door and doors_api.is_closed
+			and doors_api.is_closed(minetest.get_node(target_door).name) then
+		-- Only from close enough to be at it, or a villager would open
+		-- doors from across the village.
+		if vector.distance(pos, target_door) <= DOOR_REACH + 1 then
+			door_pos = target_door
+		end
+	else
+		door_pos = doors_api.find_closed_near(pos, DOOR_REACH)
+		-- Without a journey, only open a door we are squarely heading
+		-- into. A plain "is it vaguely that way" test was too generous:
+		-- a villager that had just left its house and was walking round
+		-- the outside kept passing its own front door at an angle the
+		-- test accepted, opening and shutting it each time.
+		if door_pos and nav_target then
+			local to_door = vector.direction(pos, door_pos)
+			local to_goal = vector.direction(pos, nav_target)
+			if (to_door.x * to_goal.x + to_door.z * to_goal.z) < 0.6 then
+				door_pos = nil
+			end
+		end
+		-- And only while actually going somewhere.
+		if door_pos and self.state ~= "walk" then
+			door_pos = nil
 		end
 	end
+	if not door_pos then return end
+
+	-- Already holding one open? Don't start on another.
+	if self.nv_door_opened then return end
 
 	if doors_api.set(door_pos, true) then
 		self.nv_door_opened = vector.new(door_pos)
